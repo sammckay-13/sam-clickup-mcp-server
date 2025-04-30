@@ -39,4 +39,3 @@ def main(api_key: str | None, verbose: bool) -> None:
 
 if __name__ == "__main__":
     main()
-EOF < /dev/null
