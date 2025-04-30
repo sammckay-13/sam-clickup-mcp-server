@@ -284,6 +284,11 @@ class ClickUpClient:
         processed_comment = process_markdown(comment_text)
         data = {"comment_text": processed_comment}
         return self._make_request("POST", f"/task/{task_id}/comment", data=data)
+    
+    def get_comments(self, task_id: str) -> List[Dict]:
+        """Get all comments for a task"""
+        response = self._make_request("GET", f"/task/{task_id}/comment")
+        return response.get("comments", [])
         
     def add_attachment(self, task_id: str, attachment_url: str) -> Dict:
         """Add an attachment to a task by URL"""

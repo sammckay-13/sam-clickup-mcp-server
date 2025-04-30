@@ -20,53 +20,67 @@ def process_markdown(text: Optional[str], convert_to_html: bool = True) -> Optio
         return text
         
     try:
+        # Check if the input text is already HTML
+        is_html = False
+        if text.strip().startswith('<') and ('</p>' in text or '</ol>' in text or '</ul>' in text or '</div>' in text):
+            is_html = True
+            
         if convert_to_html:
-            # Convert markdown to HTML
-            html = markdown.markdown(
-                text,
-                extensions=[
-                    'markdown.extensions.fenced_code',
-                    'markdown.extensions.tables',
-                    'markdown.extensions.nl2br',
-                    'markdown.extensions.sane_lists'
-                ]
-            )
-            
-            # Clean up the HTML to ensure it's compatible with ClickUp's HTML subset
-            soup = BeautifulSoup(html, 'html.parser')
-            
-            # Ensure heading tags are properly formatted for ClickUp
-            for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-                tag.name = 'h'
-                tag['class'] = f"h{tag.name[-1]}"
-            
-            # Ensure code blocks are properly formatted
-            for tag in soup.find_all('pre'):
-                if tag.code:
-                    code_content = tag.code.string if tag.code.string else ''.join(str(c) for c in tag.code.contents)
-                    tag.clear()
-                    tag['class'] = 'code'
-                    tag.string = code_content
-            
-            # Return the cleaned HTML
-            return str(soup)
+            if is_html:
+                # The content is already HTML, just ensure it's ClickUp-compatible
+                return clickup_safe_html(text)
+            else:
+                # Convert markdown to HTML
+                html = markdown.markdown(
+                    text,
+                    extensions=[
+                        'markdown.extensions.fenced_code',
+                        'markdown.extensions.tables',
+                        'markdown.extensions.nl2br',
+                        'markdown.extensions.sane_lists'
+                    ]
+                )
+                
+                # Clean up the HTML to ensure it's compatible with ClickUp's HTML subset
+                soup = BeautifulSoup(html, 'html.parser')
+                
+                # Ensure heading tags are properly formatted for ClickUp
+                for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+                    tag.name = 'h'
+                    tag['class'] = f"h{tag.name[-1]}"
+                
+                # Ensure code blocks are properly formatted
+                for tag in soup.find_all('pre'):
+                    if tag.code:
+                        code_content = tag.code.string if tag.code.string else ''.join(str(c) for c in tag.code.contents)
+                        tag.clear()
+                        tag['class'] = 'code'
+                        tag.string = code_content
+                
+                # Return the cleaned HTML
+                return str(soup)
         else:
-            # Just clean up the markdown for better readability
-            lines = text.split('\n')
-            
-            # Ensure headers have proper spacing
-            for i in range(len(lines)):
-                if lines[i].startswith('#'):
-                    # Count the number of # symbols
-                    header_level = 0
-                    while header_level < len(lines[i]) and lines[i][header_level] == '#':
-                        header_level += 1
-                    
-                    # Ensure there's a space after the # symbols
-                    if header_level < len(lines[i]) and lines[i][header_level] != ' ':
-                        lines[i] = lines[i][:header_level] + ' ' + lines[i][header_level:]
-            
-            return '\n'.join(lines)
+            if is_html:
+                # Convert HTML to markdown-style text for display
+                soup = BeautifulSoup(text, 'html.parser')
+                return soup.get_text(separator='\n')
+            else:
+                # Just clean up the markdown for better readability
+                lines = text.split('\n')
+                
+                # Ensure headers have proper spacing
+                for i in range(len(lines)):
+                    if lines[i].startswith('#'):
+                        # Count the number of # symbols
+                        header_level = 0
+                        while header_level < len(lines[i]) and lines[i][header_level] == '#':
+                            header_level += 1
+                        
+                        # Ensure there's a space after the # symbols
+                        if header_level < len(lines[i]) and lines[i][header_level] != ' ':
+                            lines[i] = lines[i][:header_level] + ' ' + lines[i][header_level:]
+                
+                return '\n'.join(lines)
     except Exception as e:
         logger.error(f"Error processing markdown: {e}")
         return text  # Return the original text in case of errors

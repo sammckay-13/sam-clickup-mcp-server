@@ -105,6 +105,9 @@ class BulkUpdateTasks(BaseModel):
 class BulkDeleteTasks(BaseModel):
     task_ids: List[str] = Field(description="List of task IDs to delete")
 
+class GetComments(BaseModel):
+    task_id: str = Field(description="ID of the task to get comments for")
+
 class GetFolders(BaseModel):
     space_id: str = Field(description="ID of the space")
 
@@ -163,6 +166,7 @@ class ClickUpTools(str, Enum):
     DUPLICATE_TASK = "duplicate_task"
     CREATE_SUBTASK = "create_subtask"
     ADD_COMMENT = "add_comment"
+    GET_COMMENTS = "get_comments"
     ADD_ATTACHMENT = "add_attachment"
     BULK_UPDATE_TASKS = "bulk_update_tasks"
     BULK_DELETE_TASKS = "bulk_delete_tasks"
@@ -311,6 +315,11 @@ async def serve(api_key: str) -> None:
                 name=ClickUpTools.ADD_COMMENT,
                 description="Add a comment to a task",
                 inputSchema=AddComment.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.GET_COMMENTS,
+                description="Get all comments for a task",
+                inputSchema=GetComments.schema(),
             ),
             Tool(
                 name=ClickUpTools.ADD_ATTACHMENT,
@@ -644,6 +653,38 @@ async def serve(api_key: str) -> None:
                     return [TextContent(
                         type="text",
                         text=f"Added comment to task {arguments['task_id']}:\n{format_json(result)}"
+                    )]
+                
+                case ClickUpTools.GET_COMMENTS:
+                    comments = client.get_comments(arguments["task_id"])
+                    
+                    # Format the comments for better readability
+                    if not comments:
+                        return [TextContent(
+                            type="text",
+                            text=f"No comments found for task {arguments['task_id']}"
+                        )]
+                    
+                    result = [f"Comments for task {arguments['task_id']}:"]
+                    for i, comment in enumerate(comments, 1):
+                        user = comment.get("user", {})
+                        user_name = user.get("username", "Unknown")
+                        comment_text = comment.get("comment_text", "")
+                        date = comment.get("date", "")
+                        
+                        if date:
+                            import datetime
+                            # Convert from milliseconds to readable date
+                            date_str = datetime.datetime.fromtimestamp(date/1000).strftime('%Y-%m-%d %H:%M:%S')
+                            result.append(f"\n## Comment {i} by {user_name} on {date_str}")
+                        else:
+                            result.append(f"\n## Comment {i} by {user_name}")
+                        
+                        result.append(comment_text)
+                    
+                    return [TextContent(
+                        type="text",
+                        text="\n".join(result)
                     )]
                     
                 case ClickUpTools.ADD_ATTACHMENT:
