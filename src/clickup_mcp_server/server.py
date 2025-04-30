@@ -67,6 +67,12 @@ class GetTaskSubtasks(BaseModel):
 class GetFolders(BaseModel):
     space_id: str = Field(description="ID of the space")
 
+class GetListStatuses(BaseModel):
+    list_id: str = Field(description="ID of the list/board")
+
+class GetTasksGroupedByStatus(BaseModel):
+    list_id: str = Field(description="ID of the list/board")
+
 class ClickUpTools(str, Enum):
     GET_WORKSPACES = "get_workspaces"
     GET_SPACES = "get_spaces"
@@ -76,6 +82,8 @@ class ClickUpTools(str, Enum):
     CREATE_LIST = "create_list"
     GET_TASKS = "get_tasks"
     GET_TASKS_BY_STATUS = "get_tasks_by_status"
+    GET_LIST_STATUSES = "get_list_statuses"
+    GET_TASKS_GROUPED_BY_STATUS = "get_tasks_grouped_by_status"
     CREATE_TASK = "create_task"
     GET_TASK = "get_task"
     UPDATE_TASK = "update_task"
@@ -132,6 +140,16 @@ async def serve(api_key: str) -> None:
                 name=ClickUpTools.GET_TASKS_BY_STATUS,
                 description="Get tasks with a specific status in a list/board",
                 inputSchema=GetTasksByStatus.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.GET_LIST_STATUSES,
+                description="Get all statuses available in a list/board",
+                inputSchema=GetListStatuses.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.GET_TASKS_GROUPED_BY_STATUS,
+                description="Get all tasks in a list/board grouped by status (including empty statuses)",
+                inputSchema=GetTasksGroupedByStatus.schema(),
             ),
             Tool(
                 name=ClickUpTools.CREATE_TASK,
@@ -234,6 +252,20 @@ async def serve(api_key: str) -> None:
                         type="text",
                         text=f"Tasks with status '{arguments['status']}' in list {arguments['list_id']}:\n{format_json_list(tasks)}"
                     )]
+                    
+                case ClickUpTools.GET_LIST_STATUSES:
+                    statuses = client.get_list_statuses(arguments["list_id"])
+                    return [TextContent(
+                        type="text",
+                        text=f"Available statuses in list {arguments['list_id']}:\n{format_status_list(statuses)}"
+                    )]
+                    
+                case ClickUpTools.GET_TASKS_GROUPED_BY_STATUS:
+                    tasks_by_status = client.get_tasks_grouped_by_status(arguments["list_id"])
+                    return [TextContent(
+                        type="text",
+                        text=format_tasks_by_status(tasks_by_status, arguments["list_id"])
+                    )]
                 
                 case ClickUpTools.CREATE_TASK:
                     # Extract optional parameters
@@ -328,5 +360,40 @@ def format_json_list(items: List[Dict]) -> str:
             result.append(f"{i}. {name} (ID: {id_value}) - in folder: {item['folder_name']} (ID: {item['folder_id']})")
         else:
             result.append(f"{i}. {name} (ID: {id_value})")
+    
+    return "\n".join(result)
+
+def format_status_list(statuses: List[Dict]) -> str:
+    """Format a list of statuses for display"""
+    if not statuses:
+        return "No statuses found"
+    
+    result = []
+    for i, status in enumerate(statuses, 1):
+        status_name = status.get("status", f"Status {i}")
+        status_id = status.get("id", "unknown")
+        status_color = status.get("color", "unknown")
+        order_index = status.get("orderindex", "unknown")
+        
+        result.append(f"{i}. {status_name} (ID: {status_id}, Color: {status_color}, Order: {order_index})")
+    
+    return "\n".join(result)
+
+def format_tasks_by_status(tasks_by_status: Dict[str, List[Dict]], list_id: str) -> str:
+    """Format tasks grouped by status for display"""
+    result = [f"Tasks in list {list_id} grouped by status:"]
+    
+    for status, tasks in tasks_by_status.items():
+        task_count = len(tasks)
+        status_line = f"\n## {status} ({task_count} tasks)"
+        result.append(status_line)
+        
+        if tasks:
+            for i, task in enumerate(tasks, 1):
+                name = task.get("name", f"Task {i}")
+                id_value = task.get("id", "unknown")
+                result.append(f"  {i}. {name} (ID: {id_value})")
+        else:
+            result.append("  (empty)")
     
     return "\n".join(result)

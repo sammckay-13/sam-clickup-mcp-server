@@ -110,6 +110,35 @@ class ClickUpClient:
         """Get tasks in a list with a specific status"""
         params = {"statuses[]": status}
         return self.get_tasks(list_id, params)
+        
+    def get_list_statuses(self, list_id: str) -> List[Dict]:
+        """Get all statuses available in a list"""
+        response = self._make_request("GET", f"/list/{list_id}")
+        return response.get("statuses", [])
+        
+    def get_tasks_grouped_by_status(self, list_id: str) -> Dict[str, List[Dict]]:
+        """Get all tasks in a list grouped by status, including empty statuses"""
+        # Get all tasks in the list
+        all_tasks = self.get_tasks(list_id)
+        
+        # Get all statuses in the list
+        statuses = self.get_list_statuses(list_id)
+        
+        # Initialize result dictionary with empty lists for each status
+        result = {status["status"]: [] for status in statuses}
+        
+        # Group tasks by status
+        for task in all_tasks:
+            status = task.get("status", {})
+            if isinstance(status, dict):
+                status_name = status.get("status")
+            else:
+                status_name = status
+            
+            if status_name in result:
+                result[status_name].append(task)
+        
+        return result
     
     def create_task(self, list_id: str, name: str, **kwargs) -> Dict:
         """Create a new task in a list"""
