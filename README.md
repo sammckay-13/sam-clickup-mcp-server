@@ -6,6 +6,39 @@ A Model Context Protocol server for ClickUp API interaction and automation. This
 
 This MCP server enables AI tools like Claude to interact with your ClickUp workspace, helping automate task management, project planning, and other workflows.
 
+## Features
+
+This MCP server provides comprehensive integration with ClickUp, offering the following capabilities:
+
+### Task Management
+- Create, update, and delete tasks
+- Move and duplicate tasks between lists and boards
+- Set task properties including due dates, priorities, and tags
+- Create, view, and manage subtasks
+- Add comments and attachments to tasks
+- Support for both single and bulk task operations
+- Task grouping and filtering by status
+
+### Workspace Organization
+- Navigate and manage workspaces, spaces, folders, and lists
+- Create, update, and delete spaces and folders
+- Organize lists within spaces and folders
+- View comprehensive workspace hierarchy
+- Navigate efficiently through workspace using path notation
+- Create lists in spaces or inside folders
+
+### Formatting and Display
+- Full markdown support for task descriptions and comments
+- HTML conversion for proper rendering in ClickUp
+- Formatted display of task details, lists, and hierarchies
+- Enhanced display of complex project structures
+
+### Developer Experience
+- Comprehensive error handling and validation
+- Clear, consistent API responses
+- Detailed documentation for all tools
+- Easy integration with Claude and other AI systems
+
 ## Tools
 
 The server provides the following tools for interacting with ClickUp:
@@ -17,69 +50,117 @@ The server provides the following tools for interacting with ClickUp:
    - Input: None
    - Returns: List of workspaces with IDs and names
 
+2. `navigate_workspace`
+   - Navigates through workspace hierarchy using path notation
+   - Input:
+     - `path` (string): Path through workspace hierarchy (team_id/space_name/folder_name/list_name)
+   - Returns: Details of the target entity and its full path
+
 ### Space Tools
 
-2. `get_spaces`
+3. `get_spaces`
    - Gets all spaces in a workspace
    - Input:
      - `workspace_id` (string): ID of the workspace/team
    - Returns: List of spaces with IDs and names
 
-3. `create_space`
+4. `create_space`
    - Creates a new space in a workspace
    - Inputs:
      - `workspace_id` (string): ID of the workspace/team
      - `name` (string): Name of the new space
    - Returns: Details of the created space
 
-### List/Board Tools
-
-4. `get_lists`
-   - Gets all lists/boards in a space
+5. `get_space_hierarchy`
+   - Gets the full hierarchy of a space including folders and lists
    - Input:
      - `space_id` (string): ID of the space
-   - Returns: List of lists/boards with IDs and names
+   - Returns: Complete hierarchical structure of the space
 
-5. `create_list`
-   - Creates a new list/board in a space
+### Folder Tools
+
+6. `get_folders`
+   - Gets all folders in a space
+   - Input:
+     - `space_id` (string): ID of the space
+   - Returns: List of folders with IDs and names
+
+7. `create_folder`
+   - Creates a new folder in a space
    - Inputs:
      - `space_id` (string): ID of the space
-     - `name` (string): Name of the new list/board
-   - Returns: Details of the created list/board
+     - `name` (string): Name of the new folder
+   - Returns: Details of the created folder
+
+8. `update_folder`
+   - Updates a folder's name
+   - Inputs:
+     - `folder_id` (string): ID of the folder to update
+     - `name` (string): New name for the folder
+   - Returns: Updated folder details
+
+9. `delete_folder`
+   - Deletes a folder
+   - Input:
+     - `folder_id` (string): ID of the folder to delete
+   - Returns: Confirmation of deletion
+
+### List/Board Tools
+
+10. `get_lists`
+    - Gets all lists/boards in a space
+    - Input:
+      - `space_id` (string): ID of the space
+    - Returns: List of lists/boards with IDs and names
+
+11. `create_list`
+    - Creates a new list/board in a space or folder
+    - Inputs:
+      - `space_id` (string): ID of the space
+      - `name` (string): Name of the new list/board
+      - `folder_id` (string, optional): ID of the folder (if creating list in a folder)
+    - Returns: Details of the created list/board
+
+12. `organize_lists`
+    - Organizes lists by their location (in space or in folders)
+    - Inputs:
+      - `space_id` (string): ID of the space
+      - `folder_id` (string, optional): ID of a specific folder
+    - Returns: Lists organized by their containing folder
 
 ### Task Tools
 
-6. `get_tasks`
+13. `get_tasks`
    - Gets all tasks in a list/board
    - Input:
      - `list_id` (string): ID of the list/board
    - Returns: List of tasks with IDs, names, and other details
 
-7. `get_tasks_by_status`
-   - Gets tasks with a specific status in a list/board
-   - Inputs:
-     - `list_id` (string): ID of the list/board
-     - `status` (string): Status to filter tasks by
-   - Returns: List of tasks with the specified status
+14. `get_tasks_by_status`
+    - Gets tasks with a specific status in a list/board
+    - Inputs:
+      - `list_id` (string): ID of the list/board
+      - `status` (string): Status to filter tasks by
+    - Returns: List of tasks with the specified status
 
-8. `create_task`
-   - Creates a new task in a list/board
-   - Inputs:
-     - `list_id` (string): ID of the list/board
-     - `name` (string): Name of the task
-     - `description` (string, optional): Task description
-     - `priority` (number, optional): Task priority (1-4)
-     - `due_date` (number, optional): Task due date in milliseconds
-     - `tags` (string[], optional): List of tag names to add to task
-   - Returns: Details of the created task
+15. `create_task`
+    - Creates a new task in a list/board
+    - Inputs:
+      - `list_id` (string): ID of the list/board
+      - `name` (string): Name of the task
+      - `description` (string, optional): Task description
+      - `priority` (number, optional): Task priority (1-4)
+      - `due_date` (number, optional): Task due date in milliseconds
+      - `tags` (string[], optional): List of tag names to add to task
+    - Returns: Details of the created task
 
-9. `get_task`
-   - Gets details of a specific task
-   - Input:
-     - `task_id` (string): ID of the task
-   - Returns: Full details of the task including description, status, etc.
+16. `get_task`
+    - Gets details of a specific task
+    - Input:
+      - `task_id` (string): ID of the task
+    - Returns: Full details of the task including description, status, etc.
 
-10. `update_task`
+17. `update_task`
     - Updates a task's properties
     - Inputs:
       - `task_id` (string): ID of the task
@@ -90,25 +171,89 @@ The server provides the following tools for interacting with ClickUp:
       - `tags` (string[], optional): New list of tag names
     - Returns: Updated task details
 
-11. `update_task_status`
+18. `update_task_status`
     - Updates a task's status
     - Inputs:
       - `task_id` (string): ID of the task
       - `status` (string): New status for the task
     - Returns: Updated task details
 
-12. `assign_task`
+19. `assign_task`
     - Assigns users to a task
     - Inputs:
       - `task_id` (string): ID of the task
       - `assignee_ids` (string[]): List of user IDs to assign to the task
     - Returns: Confirmation of assignment
 
-13. `get_task_subtasks`
+20. `get_task_subtasks`
     - Gets subtasks for a task
     - Input:
       - `task_id` (string): ID of the task
     - Returns: List of subtasks with their details
+
+21. `delete_task`
+    - Deletes a task
+    - Input:
+      - `task_id` (string): ID of the task to delete
+    - Returns: Confirmation of deletion
+
+22. `move_task`
+    - Moves a task to a different list/board
+    - Inputs:
+      - `task_id` (string): ID of the task to move
+      - `list_id` (string): ID of the destination list/board
+    - Returns: Updated task details
+
+23. `duplicate_task`
+    - Duplicates a task, optionally to a different list/board
+    - Inputs:
+      - `task_id` (string): ID of the task to duplicate
+      - `list_id` (string, optional): ID of the destination list/board
+    - Returns: Details of the duplicated task
+
+24. `create_subtask`
+    - Creates a subtask for a parent task
+    - Inputs:
+      - `parent_task_id` (string): ID of the parent task
+      - `name` (string): Name of the subtask
+      - `description` (string, optional): Subtask description
+      - `priority` (number, optional): Subtask priority (1-4)
+      - `due_date` (number, optional): Subtask due date in milliseconds
+      - `tags` (string[], optional): List of tag names for the subtask
+    - Returns: Details of the created subtask
+
+25. `add_comment`
+    - Adds a comment to a task
+    - Inputs:
+      - `task_id` (string): ID of the task
+      - `comment_text` (string): Text content of the comment
+    - Returns: Details of the added comment
+
+26. `add_attachment`
+    - Adds an attachment to a task by URL
+    - Inputs:
+      - `task_id` (string): ID of the task
+      - `attachment_url` (string): URL of the attachment to add
+    - Returns: Details of the added attachment
+
+27. `bulk_update_tasks`
+    - Updates multiple tasks in a list at once
+    - Inputs:
+      - `list_id` (string): ID of the list/board containing the tasks
+      - `task_ids` (string[]): List of task IDs to update
+      - `name` (string, optional): New task name for all tasks
+      - `description` (string, optional): New task description for all tasks
+      - `status` (string, optional): New status for all tasks
+      - `priority` (number, optional): New priority for all tasks (1-4)
+      - `due_date` (number, optional): New due date for all tasks in milliseconds
+      - `tags` (string[], optional): New list of tag names for all tasks
+    - Returns: Confirmation of bulk update
+
+28. `bulk_delete_tasks`
+    - Deletes multiple tasks at once
+    - Input:
+      - `task_ids` (string[]): List of task IDs to delete
+    - Returns: Confirmation of bulk deletion
 
 ## Installation
 
@@ -350,6 +495,63 @@ Build the Docker image:
 ```bash
 docker build -t mcp/clickup .
 ```
+
+## Implementation Status
+
+This MCP server implements the majority of essential ClickUp features. Below is a detailed breakdown of implemented features and those planned for future implementation.
+
+### Task Management ✅
+All core task management features have been implemented:
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Create tasks | ✅ | Create new tasks in any list or board |
+| Update tasks | ✅ | Modify task properties including name, description, and more |
+| Delete tasks | ✅ | Remove tasks from ClickUp |
+| Move tasks | ✅ | Relocate tasks between different lists and boards |
+| Duplicate tasks | ✅ | Create copies of tasks, optionally in different locations |
+| Set dates | ✅ | Set start and due dates for tasks |
+| View subtasks | ✅ | Retrieve subtasks for any parent task |
+| Create subtasks | ✅ | Add subtasks to existing tasks |
+| Manage subtasks | ✅ | Update and delete subtasks |
+| Add comments | ✅ | Add comments to tasks with markdown support |
+| Add attachments | ✅ | Attach files via URL to tasks |
+| Single operations | ✅ | Perform actions on individual tasks |
+| Bulk operations | ✅ | Perform actions on multiple tasks simultaneously |
+
+### Workspace Organization ✅
+All workspace organization features have been implemented:
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Navigate spaces | ✅ | Browse and select spaces in workspaces |
+| Navigate folders | ✅ | Browse and select folders within spaces |
+| Navigate lists | ✅ | Browse and select lists in spaces or folders |
+| Create spaces | ✅ | Create new spaces in workspaces |
+| Create lists | ✅ | Create new lists in spaces or folders |
+| Create folders | ✅ | Create new folders within spaces |
+| Organize lists | ✅ | Group and organize lists by location |
+| Lists in folders | ✅ | Create and manage lists inside folders |
+| View hierarchy | ✅ | See the complete workspace structure |
+| Path navigation | ✅ | Navigate efficiently using path notation |
+
+### Miscellaneous Features 🔧
+Some advanced features are implemented, with others planned for future releases:
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Global lookups | 🔄 | Find items by name or ID across workspaces *(planned)* |
+| Case-insensitive | 🔄 | Match names regardless of capitalization *(planned)* |
+| Basic markdown | ✅ | Support for basic markdown in descriptions |
+| Enhanced markdown | ✅ | Advanced markdown with proper rendering in ClickUp |
+| Rate limiting | 🔄 | Built-in handling of API rate limits *(planned)* |
+| Error handling | ✅ | Comprehensive error detection and reporting |
+| Input validation | ✅ | Validation of all inputs before API submission |
+| API coverage | 🔄 | Support for additional ClickUp API features *(in progress)* |
+
+**Legend:**
+- ✅ Implemented
+- 🔄 Planned or in progress
 
 ## License
 
