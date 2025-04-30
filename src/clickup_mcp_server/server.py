@@ -25,6 +25,7 @@ class GetLists(BaseModel):
 class CreateList(BaseModel):
     space_id: str = Field(description="ID of the space")
     name: str = Field(description="Name of the new list")
+    folder_id: Optional[str] = Field(None, description="ID of the folder (if creating list in a folder)")
 
 class GetTasks(BaseModel):
     list_id: str = Field(description="ID of the list/board")
@@ -63,10 +64,14 @@ class AssignTask(BaseModel):
 class GetTaskSubtasks(BaseModel):
     task_id: str = Field(description="ID of the task")
 
+class GetFolders(BaseModel):
+    space_id: str = Field(description="ID of the space")
+
 class ClickUpTools(str, Enum):
     GET_WORKSPACES = "get_workspaces"
     GET_SPACES = "get_spaces"
     CREATE_SPACE = "create_space"
+    GET_FOLDERS = "get_folders"
     GET_LISTS = "get_lists"
     CREATE_LIST = "create_list"
     GET_TASKS = "get_tasks"
@@ -104,13 +109,18 @@ async def serve(api_key: str) -> None:
                 inputSchema=CreateSpace.schema(),
             ),
             Tool(
+                name=ClickUpTools.GET_FOLDERS,
+                description="Get all folders in a space",
+                inputSchema=GetFolders.schema(),
+            ),
+            Tool(
                 name=ClickUpTools.GET_LISTS,
-                description="Get all lists/boards in a space",
+                description="Get all lists/boards in a space (including lists in folders)",
                 inputSchema=GetLists.schema(),
             ),
             Tool(
                 name=ClickUpTools.CREATE_LIST,
-                description="Create a new list/board in a space",
+                description="Create a new list/board in a space or folder",
                 inputSchema=CreateList.schema(),
             ),
             Tool(
@@ -182,18 +192,33 @@ async def serve(api_key: str) -> None:
                         text=f"Created space:\n{format_json(space)}"
                     )]
                 
+                case ClickUpTools.GET_FOLDERS:
+                    folders = client.get_folders(arguments["space_id"])
+                    return [TextContent(
+                        type="text",
+                        text=f"Folders in space {arguments['space_id']}:\n{format_json_list(folders)}"
+                    )]
+                
                 case ClickUpTools.GET_LISTS:
                     lists = client.get_lists(arguments["space_id"])
                     return [TextContent(
                         type="text",
-                        text=f"Lists in space {arguments['space_id']}:\n{format_json_list(lists)}"
+                        text=f"Lists in space {arguments['space_id']} (including lists in folders):\n{format_json_list(lists)}"
                     )]
                 
                 case ClickUpTools.CREATE_LIST:
-                    list_obj = client.create_list(arguments["space_id"], arguments["name"])
+                    space_id = arguments["space_id"]
+                    name = arguments["name"]
+                    folder_id = arguments.get("folder_id")
+                    list_obj = client.create_list(space_id, name, folder_id)
+                    
+                    location_info = f"space {space_id}"
+                    if folder_id:
+                        location_info = f"folder {folder_id} in space {space_id}"
+                        
                     return [TextContent(
                         type="text",
-                        text=f"Created list:\n{format_json(list_obj)}"
+                        text=f"Created list in {location_info}:\n{format_json(list_obj)}"
                     )]
                 
                 case ClickUpTools.GET_TASKS:
@@ -297,7 +322,11 @@ def format_json_list(items: List[Dict]) -> str:
     for i, item in enumerate(items, 1):
         name = item.get("name", f"Item {i}")
         id_value = item.get("id", "unknown")
-        result.append(f"{i}. {name} (ID: {id_value})")
+        
+        # For lists that are in folders, show folder information
+        if "folder_name" in item and "folder_id" in item:
+            result.append(f"{i}. {name} (ID: {id_value}) - in folder: {item['folder_name']} (ID: {item['folder_id']})")
+        else:
+            result.append(f"{i}. {name} (ID: {id_value})")
     
     return "\n".join(result)
-EOF < /dev/null

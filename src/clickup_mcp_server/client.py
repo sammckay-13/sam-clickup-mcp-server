@@ -57,17 +57,47 @@ class ClickUpClient:
         data = {"name": name}
         return self._make_request("POST", f"/team/{workspace_id}/space", data=data)
     
+    # Folder methods
+    
+    def get_folders(self, space_id: str) -> List[Dict]:
+        """Get all folders in a space"""
+        response = self._make_request("GET", f"/space/{space_id}/folder")
+        return response.get("folders", [])
+    
     # List/Board methods
     
     def get_lists(self, space_id: str) -> List[Dict]:
-        """Get all lists in a space"""
+        """Get all lists in a space, including lists inside folders"""
+        # First get lists directly in the space
         response = self._make_request("GET", f"/space/{space_id}/list")
-        return response.get("lists", [])
+        lists = response.get("lists", [])
+        
+        # Then get folders and their lists
+        folders = self.get_folders(space_id)
+        for folder in folders:
+            folder_id = folder.get("id")
+            folder_response = self._make_request("GET", f"/folder/{folder_id}/list")
+            folder_lists = folder_response.get("lists", [])
+            
+            # Add folder information to each list for context
+            for list_item in folder_lists:
+                list_item["folder_id"] = folder_id
+                list_item["folder_name"] = folder.get("name")
+            
+            lists.extend(folder_lists)
+            
+        return lists
     
-    def create_list(self, space_id: str, name: str) -> Dict:
-        """Create a new list in a space"""
+    def create_list(self, space_id: str, name: str, folder_id: Optional[str] = None) -> Dict:
+        """Create a new list in a space or folder"""
         data = {"name": name}
-        return self._make_request("POST", f"/space/{space_id}/list", data=data)
+        
+        if folder_id:
+            # Create list in a folder
+            return self._make_request("POST", f"/folder/{folder_id}/list", data=data)
+        else:
+            # Create list directly in a space
+            return self._make_request("POST", f"/space/{space_id}/list", data=data)
     
     # Task methods
     
@@ -108,4 +138,3 @@ class ClickUpClient:
         params = {"subtasks": True}
         response = self._make_request("GET", f"/task/{task_id}", params=params)
         return response.get("subtasks", [])
-EOF < /dev/null
