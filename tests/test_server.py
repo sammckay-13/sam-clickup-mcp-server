@@ -148,4 +148,3 @@ class TestServer:
                 "Test Task", 
                 description="Task description"
             )
-EOF < /dev/null

@@ -20,9 +20,10 @@ def process_markdown(text: Optional[str], convert_to_html: bool = True) -> Optio
         return text
         
     try:
-        # Check if the input text is already HTML
+        # More robust check if the input text is already HTML
         is_html = False
-        if text.strip().startswith('<') and ('</p>' in text or '</ol>' in text or '</ul>' in text or '</div>' in text):
+        text_stripped = text.strip()
+        if text_stripped.startswith('<') and ('</p>' in text or '</ol>' in text or '</ul>' in text or '</div>' in text or '</br>' in text or '</b>' in text or '</i>' in text or '</a>' in text or '</span>' in text):
             is_html = True
             
         if convert_to_html:
@@ -101,15 +102,30 @@ def clickup_safe_html(html: str) -> str:
         # ClickUp supports a limited set of HTML tags
         allowed_tags = [
             'a', 'b', 'i', 'u', 'strike', 'code', 'pre', 'h', 'blockquote',
-            'ul', 'ol', 'li', 'p', 'div', 'em', 'strong', 'del', 'span'
+            'ul', 'ol', 'li', 'p', 'div', 'em', 'strong', 'del', 'span', 'br'
         ]
         
+        # Process all tags to ensure they're ClickUp-compatible
         for tag in soup.find_all():
             if tag.name not in allowed_tags:
-                # Replace unsupported tags with a div
-                tag.name = 'div'
+                # Replace unsupported tags with an appropriate equivalent when possible
+                if tag.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                    # Convert to ClickUp's h tag with class
+                    new_tag = soup.new_tag('h')
+                    new_tag['class'] = f"h{tag.name[1]}"
+                    new_tag.string = tag.get_text()
+                    tag.replace_with(new_tag)
+                else:
+                    # Default to div for unknown tags
+                    tag.name = 'div'
         
-        return str(soup)
+        # Clean the html to ensure it's properly formatted
+        cleaned_html = str(soup)
+        
+        # No need to double-encode HTML entities
+        # ClickUp handles standard HTML entities properly
+        
+        return cleaned_html
     except Exception as e:
         logger.error(f"Error converting to ClickUp-safe HTML: {e}")
         return html  # Return the original HTML in case of errors
@@ -128,44 +144,108 @@ def format_description_for_display(description: Optional[str]) -> Optional[str]:
         return description
         
     try:
-        # Convert HTML to readable text
+        # Check if the description contains HTML tags
+        contains_html = False
+        html_tags = ['<h', '<p>', '<ul>', '<ol>', '<li>', '<pre>', '<code>', '<em>', '<strong>', '<b>', '<i>', '<a ', '<table>', '<tr>', '<td>', '<blockquote>']
+        for tag in html_tags:
+            if tag in description:
+                contains_html = True
+                break
+                
+        if not contains_html:
+            # If description doesn't contain HTML, return as is
+            return description
+            
+        # First, strip out any HTML entities to prevent double-encoding issues
+        from html import unescape
+        description = unescape(description)
+        
+        # Parse the HTML with BeautifulSoup
         soup = BeautifulSoup(description, 'html.parser')
         
-        # Handle headers properly
-        for h_tag in soup.find_all('h'):
-            classes = h_tag.get('class', [])
-            header_level = 1
-            
-            # Extract header level from class name
-            for class_name in classes:
-                if class_name.startswith('h') and len(class_name) > 1:
-                    try:
-                        header_level = int(class_name[1:])
-                    except ValueError:
-                        pass
-            
-            # Replace with markdown-style headers
-            new_tag = soup.new_tag('p')
-            new_tag.string = '#' * header_level + ' ' + h_tag.get_text()
-            h_tag.replace_with(new_tag)
+        # Create a new document to add the processed elements to
+        output = []
         
-        # Handle other formatting
-        for tag in soup.find_all('b'):
-            tag.replace_with(f"**{tag.get_text()}**")
-            
-        for tag in soup.find_all('i'):
-            tag.replace_with(f"*{tag.get_text()}*")
-            
-        for tag in soup.find_all('code'):
-            tag.replace_with(f"`{tag.get_text()}`")
-            
-        for tag in soup.find_all('pre'):
-            tag.replace_with(f"```\n{tag.get_text()}\n```")
-            
-        # Convert to text while preserving basic formatting
-        text = soup.get_text(separator='\n')
+        # Process each element in the document structure
+        for element in soup.children:
+            if element.name == 'h':
+                # Handle headers
+                header_level = 1
+                classes = element.get('class', [])
+                
+                # Extract header level from class name
+                for class_name in classes:
+                    if class_name.startswith('h') and len(class_name) > 1:
+                        try:
+                            header_level = int(class_name[1:])
+                        except ValueError:
+                            pass
+                
+                output.append(f"{'#' * header_level} {element.get_text().strip()}")
+                
+            elif element.name == 'p':
+                # Handle paragraphs
+                output.append(element.get_text().strip())
+                
+            elif element.name == 'ul' or element.name == 'ol':
+                # Handle lists
+                list_output = process_list_element(element)
+                output.append(list_output)
+                
+            elif element.name == 'pre':
+                # Handle code blocks
+                code_text = element.get_text().strip()
+                output.append(f"```\n{code_text}\n```")
+                
+            elif element.name == 'blockquote':
+                # Handle blockquotes
+                text = element.get_text().strip()
+                lines = text.split('\n')
+                quoted_lines = [f"> {line}" for line in lines]
+                output.append('\n'.join(quoted_lines))
+                
+            elif isinstance(element, str) and element.strip():
+                # Handle plain text
+                output.append(element.strip())
         
-        return text
+        # Join everything with double newlines for proper markdown spacing
+        return '\n\n'.join(output).strip()
     except Exception as e:
         logger.error(f"Error formatting description for display: {e}")
         return description  # Return the original description in case of errors
+
+def process_list_element(list_element, indent_level=0):
+    """
+    Process a list element (ul/ol) and its children recursively.
+    
+    Args:
+        list_element: The BeautifulSoup list element
+        indent_level: Current indentation level for nested lists
+        
+    Returns:
+        Formatted markdown list
+    """
+    result = []
+    
+    for i, item in enumerate(list_element.find_all('li', recursive=False)):
+        prefix = "  " * indent_level + "- "
+        if list_element.name == 'ol':  # If it's an ordered list
+            prefix = f"  {indent_level * '  '}{i+1}. "
+            
+        # Get the text content, but handle nested lists properly
+        item_content = []
+        for child in item.children:
+            if isinstance(child, str):
+                item_content.append(child.strip())
+            elif child.name == 'ul' or child.name == 'ol':
+                # Recursive call for nested lists
+                nested_list = process_list_element(child, indent_level + 1)
+                item_content.append("\n" + nested_list)
+            elif child.name:  # Any other HTML element
+                item_content.append(child.get_text().strip())
+                
+        # Join this item's content
+        item_text = ' '.join([c for c in item_content if c])
+        result.append(f"{prefix}{item_text}")
+        
+    return '\n'.join(result)

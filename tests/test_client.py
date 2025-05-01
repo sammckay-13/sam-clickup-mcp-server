@@ -116,4 +116,3 @@ class TestClickUpClient:
         # Call method and check for exception
         with pytest.raises(requests.exceptions.HTTPError):
             client.get_workspaces()
-EOF < /dev/null
