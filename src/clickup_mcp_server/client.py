@@ -221,7 +221,7 @@ class ClickUpClient:
         """Create a new task in a list"""
         # Process markdown in description if present, ensuring HTML compatibility
         if "description" in kwargs:
-            kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["description"], convert_to_html=False)
             
         data = {"name": name, **kwargs}
         return self._make_request("POST", f"/list/{list_id}/task", data=data)
@@ -234,7 +234,7 @@ class ClickUpClient:
         """Update a task"""
         # Process markdown in description if present, ensuring HTML compatibility
         if "description" in kwargs:
-            kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["description"], convert_to_html=False)
             
         return self._make_request("PUT", f"/task/{task_id}", data=kwargs)
     
@@ -273,7 +273,7 @@ class ClickUpClient:
         """Create a subtask for a parent task"""
         # Process markdown in description if present, ensuring HTML compatibility
         if "description" in kwargs:
-            kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
+            kwargs["description"] = process_markdown("/Markdown" + kwargs["description"], convert_to_html=False)
             
         data = {"name": name, **kwargs}
         return self._make_request("POST", f"/task/{parent_task_id}/subtask", data=data)
@@ -282,7 +282,7 @@ class ClickUpClient:
         """Add a comment to a task"""
         # Process markdown in comment text, ensuring HTML compatibility
         # Set convert_to_html=True to ensure we get HTML output for ClickUp
-        processed_comment = process_markdown(comment_text, convert_to_html=True)
+        processed_comment = process_markdown(comment_text, convert_to_html=False)
         data = {"comment_text": processed_comment}
         return self._make_request("POST", f"/task/{task_id}/comment", data=data)
     
@@ -300,7 +300,7 @@ class ClickUpClient:
         """Update multiple tasks in a list at once"""
         # Process markdown in description if present, ensuring HTML compatibility
         if "description" in kwargs:
-            kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["description"], convert_to_html=False)
             
         data = {"ids": task_ids, **kwargs}
         return self._make_request("PUT", f"/list/{list_id}/task/bulk", data=data)
