@@ -220,8 +220,9 @@ class ClickUpClient:
     def create_task(self, list_id: str, name: str, **kwargs) -> Dict:
         """Create a new task in a list"""
         # Process markdown in description if present, ensuring HTML compatibility
-        if "description" in kwargs:
-            kwargs["description"] = process_markdown("/Markdown " + kwargs["description"], convert_to_html=False)
+        if "markdown_description" in kwargs:
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["markdown_description"], convert_to_html=False)
+            del kwargs["markdown_description"]
             
         data = {"name": name, **kwargs}
         return self._make_request("POST", f"/list/{list_id}/task", data=data)
@@ -233,8 +234,9 @@ class ClickUpClient:
     def update_task(self, task_id: str, **kwargs) -> Dict:
         """Update a task"""
         # Process markdown in description if present, ensuring HTML compatibility
-        if "description" in kwargs:
-            kwargs["description"] = process_markdown("/Markdown " + kwargs["description"], convert_to_html=False)
+        if "markdown_description" in kwargs:
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["markdown_description"], convert_to_html=False)
+            del kwargs["markdown_description"]
             
         return self._make_request("PUT", f"/task/{task_id}", data=kwargs)
     
@@ -272,8 +274,9 @@ class ClickUpClient:
     def create_subtask(self, parent_task_id: str, name: str, **kwargs) -> Dict:
         """Create a subtask for a parent task"""
         # Process markdown in description if present, ensuring HTML compatibility
-        if "description" in kwargs:
-            kwargs["description"] = process_markdown("/Markdown" + kwargs["description"], convert_to_html=False)
+        if "markdown_description" in kwargs:
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["markdown_description"], convert_to_html=False)
+            del kwargs["markdown_description"]
             
         data = {"name": name, **kwargs}
         return self._make_request("POST", f"/task/{parent_task_id}/subtask", data=data)
@@ -299,8 +302,9 @@ class ClickUpClient:
     def bulk_update_tasks(self, list_id: str, task_ids: List[str], **kwargs) -> Dict:
         """Update multiple tasks in a list at once"""
         # Process markdown in description if present, ensuring HTML compatibility
-        if "description" in kwargs:
-            kwargs["description"] = process_markdown("/Markdown " + kwargs["description"], convert_to_html=False)
+        if "markdown_description" in kwargs:
+            kwargs["description"] = process_markdown("/Markdown " + kwargs["markdown_description"], convert_to_html=False)
+            del kwargs["markdown_description"]
             
         data = {"ids": task_ids, **kwargs}
         return self._make_request("PUT", f"/list/{list_id}/task/bulk", data=data)

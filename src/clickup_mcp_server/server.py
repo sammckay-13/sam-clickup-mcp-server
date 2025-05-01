@@ -38,7 +38,7 @@ class GetTasksByStatus(BaseModel):
 class CreateTask(BaseModel):
     list_id: str = Field(description="ID of the list/board")
     name: str = Field(description="Name of the task")
-    description: Optional[str] = Field(None, description="Task description")
+    markdown_description: Optional[str] = Field(None, description="Task description")
     priority: Optional[int] = Field(None, description="Task priority (1-4)")
     due_date: Optional[int] = Field(None, description="Task due date in milliseconds")
     tags: Optional[List[str]] = Field(None, description="List of tag names to add to task")
@@ -49,7 +49,7 @@ class GetTask(BaseModel):
 class UpdateTask(BaseModel):
     task_id: str = Field(description="ID of the task")
     name: Optional[str] = Field(None, description="New task name")
-    description: Optional[str] = Field(None, description="New task description")
+    markdown_description: Optional[str] = Field(None, description="New task description")
     priority: Optional[int] = Field(None, description="New task priority (1-4)")
     due_date: Optional[int] = Field(None, description="New due date in milliseconds")
     tags: Optional[List[str]] = Field(None, description="New list of tag names")
@@ -79,7 +79,7 @@ class DuplicateTask(BaseModel):
 class CreateSubtask(BaseModel):
     parent_task_id: str = Field(description="ID of the parent task")
     name: str = Field(description="Name of the subtask")
-    description: Optional[str] = Field(None, description="Subtask description")
+    markdown_description: Optional[str] = Field(None, description="Subtask description")
     priority: Optional[int] = Field(None, description="Subtask priority (1-4)")
     due_date: Optional[int] = Field(None, description="Subtask due date in milliseconds")
     tags: Optional[List[str]] = Field(None, description="List of tag names to add to subtask")
@@ -96,7 +96,7 @@ class BulkUpdateTasks(BaseModel):
     list_id: str = Field(description="ID of the list/board containing the tasks")
     task_ids: List[str] = Field(description="List of task IDs to update")
     name: Optional[str] = Field(None, description="New task name for all tasks")
-    description: Optional[str] = Field(None, description="New task description for all tasks")
+    markdown_description: Optional[str] = Field(None, description="New task description for all tasks")
     status: Optional[str] = Field(None, description="New status for all tasks")
     priority: Optional[int] = Field(None, description="New priority for all tasks (1-4)")
     due_date: Optional[int] = Field(None, description="New due date for all tasks in milliseconds")

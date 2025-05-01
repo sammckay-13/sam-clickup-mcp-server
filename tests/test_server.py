@@ -111,7 +111,7 @@ class TestServer:
         mock_client.create_task.return_value = {
             "id": "task_123", 
             "name": "Test Task",
-            "description": "Task description"
+            "description": "/Markdown Task description"
         }
         
         # Call serve to register the tools
@@ -132,7 +132,7 @@ class TestServer:
                 {
                     "list_id": "list_123", 
                     "name": "Test Task", 
-                    "description": "Task description"
+                    "markdown_description": "Task description"
                 }
             )
             
@@ -146,5 +146,5 @@ class TestServer:
             mock_client.create_task.assert_called_once_with(
                 "list_123", 
                 "Test Task", 
-                description="Task description"
+                markdown_description="Task description"
             )

@@ -64,7 +64,7 @@ class TestClickUpClient:
         mock_request.return_value = mock_response
         
         # Call method
-        result = client.create_task("list123", "New Task", description="Task description")
+        result = client.create_task("list123", "New Task", markdown_description="Task description")
         
         # Verify results
         assert result["id"] == "task123"
@@ -76,7 +76,7 @@ class TestClickUpClient:
             url="https://api.clickup.com/api/v2/list/list123/task",
             headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
             params=None,
-            json={"name": "New Task", "description": "Task description"}
+            json={"name": "New Task", "description": "/Markdown Task description"}
         )
     
     @patch("requests.request")
