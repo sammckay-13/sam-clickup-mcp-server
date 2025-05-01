@@ -589,17 +589,41 @@ async def serve(api_key: str) -> None:
                 case ClickUpTools.GET_TASK:
                     task = client.get_task(arguments["task_id"])
                     
-                    # Format the description for better readability if it exists
-                    if "description" in task:
-                        # If the description already looks like HTML, convert it to readable text
-                        if task["description"] and ("<" in task["description"] and ">" in task["description"]):
-                            task["description"] = format_description_for_display(task["description"])
+                    # Enhanced handling of HTML content in task fields
                     
-                    # Also clean up the text_content field if it exists (which contains the HTML)
-                    if "text_content" in task:
-                        # Skip displaying raw HTML in text_content field
-                        if task["text_content"] and ("<" in task["text_content"] and ">" in task["text_content"]):
+                    # Format the description for better readability if it exists
+                    if "description" in task and task["description"]:
+                        # More robust check for HTML content
+                        contains_html = any(tag in task["description"] for tag in [
+                            '<h', '<p>', '<div', '<span', '<ul>', '<ol>', '<li>', '<pre>', '<code>', 
+                            '<a ', '<b>', '<i>', '<em>', '<strong>', '<table>', '<blockquote>'
+                        ])
+                        
+                        if contains_html:
+                            # Convert HTML to markdown for better display
+                            task["description"] = format_description_for_display(task["description"])
+                            logger.debug(f"Converted HTML description to markdown for task {arguments['task_id']}")
+                    
+                    # Handle text_content field which typically contains raw HTML
+                    if "text_content" in task and task["text_content"]:
+                        # If text_content contains HTML but description was empty, use text_content instead
+                        if (not task.get("description") and 
+                            any(tag in task["text_content"] for tag in ['<h', '<p>', '<div', '<ul>', '<ol>'])):
+                            
+                            task["description"] = format_description_for_display(task["text_content"])
+                            task["text_content"] = "(HTML content - converted to markdown in description field)"
+                            logger.debug(f"Used text_content as description for task {arguments['task_id']}")
+                        else:
+                            # Otherwise just hide the raw HTML
                             task["text_content"] = "(HTML content - use formatted description field)"
+                    
+                    # Process any custom fields that might contain HTML
+                    if "custom_fields" in task and isinstance(task["custom_fields"], list):
+                        for field in task["custom_fields"]:
+                            if field.get("type") == "text" and field.get("value"):
+                                value = field["value"]
+                                if isinstance(value, str) and ("<" in value and ">" in value):
+                                    field["value"] = format_description_for_display(value)
                     
                     return [TextContent(
                         type="text",
@@ -691,12 +715,57 @@ async def serve(api_key: str) -> None:
                     )]
                 
                 case ClickUpTools.GET_COMMENTS:
-                    # Static response to avoid any issues with the comments API
                     task_id = arguments.get("task_id", "")
+                    comments = []
                     
+                    try:
+                        # Get comments from the API
+                        comments = client.get_comments(task_id)
+                        
+                        # Format the comments for display as plain text (no HTML/markdown processing)
+                        if comments:
+                            formatted_comments = []
+                            for comment in comments:
+                                # Format user name
+                                user_name = "Unknown User"
+                                if "user" in comment and isinstance(comment["user"], dict):
+                                    user = comment["user"]
+                                    if "username" in user and user["username"]:
+                                        user_name = user["username"]
+                                    elif "email" in user and user["email"]:
+                                        user_name = user["email"]
+                                
+                                # Format date
+                                date_str = ""
+                                if "date" in comment:
+                                    try:
+                                        date_val = comment["date"]
+                                        if isinstance(date_val, int):
+                                            from datetime import datetime
+                                            date_obj = datetime.fromtimestamp(date_val / 1000.0)
+                                            date_str = date_obj.strftime("%Y-%m-%d %H:%M:%S")
+                                    except Exception as e:
+                                        logger.error(f"Error formatting date: {e}")
+                                        
+                                # Get comment text as plain text
+                                comment_text = comment.get("comment_text", "")
+                                
+                                # Add formatted comment
+                                formatted_comments.append(f"{user_name} ({date_str}):\n{comment_text}")
+                            
+                            # Join comments with separator
+                            comments_text = "\n\n---\n\n".join(formatted_comments)
+                            return [TextContent(
+                                type="text", 
+                                text=f"Comments for task {task_id}:\n\n{comments_text}"
+                            )]
+                    except Exception as e:
+                        logger.error(f"Error getting comments: {e}", exc_info=True)
+                    
+                    # Fallback response if no comments or error occurred
                     return [TextContent(
                         type="text",
-                        text=f"Comments for task {task_id}:\n\nView comments directly in ClickUp: https://app.clickup.com/t/{task_id}\n\nThe comments API integration is currently being updated to handle HTML content properly."
+                        text=f"Comments for task {task_id}:\n\nView comments directly in ClickUp: https://app.clickup.com/t/{task_id}\n\nNo comments found or there was an error retrieving comments."
                     )]
                     
                     # Skip the original implementation - UNREACHABLE CODE

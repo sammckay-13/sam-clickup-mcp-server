@@ -219,8 +219,11 @@ class ClickUpClient:
     
     def create_task(self, list_id: str, name: str, **kwargs) -> Dict:
         """Create a new task in a list"""
-        # Process markdown in description if present, ensuring HTML compatibility
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
             
         data = {"name": name, **kwargs}
@@ -232,8 +235,11 @@ class ClickUpClient:
     
     def update_task(self, task_id: str, **kwargs) -> Dict:
         """Update a task"""
-        # Process markdown in description if present, ensuring HTML compatibility
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
             
         return self._make_request("PUT", f"/task/{task_id}", data=kwargs)
@@ -271,8 +277,11 @@ class ClickUpClient:
         
     def create_subtask(self, parent_task_id: str, name: str, **kwargs) -> Dict:
         """Create a subtask for a parent task"""
-        # Process markdown in description if present, ensuring HTML compatibility
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
             
         data = {"name": name, **kwargs}
@@ -280,10 +289,10 @@ class ClickUpClient:
         
     def add_comment(self, task_id: str, comment_text: str) -> Dict:
         """Add a comment to a task"""
-        # Process markdown in comment text, ensuring HTML compatibility
-        # Set convert_to_html=True to ensure we get HTML output for ClickUp
-        processed_comment = process_markdown(comment_text, convert_to_html=True)
-        data = {"comment_text": processed_comment}
+        # Send comments as plain text - no markdown or HTML processing
+        data = {
+            "comment_text": comment_text
+        }
         return self._make_request("POST", f"/task/{task_id}/comment", data=data)
     
     def get_comments(self, task_id: str) -> List[Dict]:
@@ -298,8 +307,11 @@ class ClickUpClient:
         
     def bulk_update_tasks(self, list_id: str, task_ids: List[str], **kwargs) -> Dict:
         """Update multiple tasks in a list at once"""
-        # Process markdown in description if present, ensuring HTML compatibility
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             kwargs["description"] = process_markdown(kwargs["description"], convert_to_html=True)
             
         data = {"ids": task_ids, **kwargs}

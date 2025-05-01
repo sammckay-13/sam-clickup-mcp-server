@@ -146,7 +146,7 @@ def format_description_for_display(description: Optional[str]) -> Optional[str]:
     try:
         # Check if the description contains HTML tags
         contains_html = False
-        html_tags = ['<h', '<p>', '<ul>', '<ol>', '<li>', '<pre>', '<code>', '<em>', '<strong>', '<b>', '<i>', '<a ', '<table>', '<tr>', '<td>', '<blockquote>']
+        html_tags = ['<h', '<p>', '<ul>', '<ol>', '<li>', '<pre>', '<code>', '<em>', '<strong>', '<b>', '<i>', '<a ', '<table>', '<tr>', '<td>', '<blockquote>', '<div', '<span']
         for tag in html_tags:
             if tag in description:
                 contains_html = True
@@ -160,58 +160,130 @@ def format_description_for_display(description: Optional[str]) -> Optional[str]:
         from html import unescape
         description = unescape(description)
         
+        # Log the incoming HTML for debugging
+        logger.debug(f"Raw HTML description: {description}")
+        
         # Parse the HTML with BeautifulSoup
         soup = BeautifulSoup(description, 'html.parser')
         
         # Create a new document to add the processed elements to
         output = []
         
-        # Process each element in the document structure
-        for element in soup.children:
-            if element.name == 'h':
-                # Handle headers
-                header_level = 1
-                classes = element.get('class', [])
-                
-                # Extract header level from class name
-                for class_name in classes:
-                    if class_name.startswith('h') and len(class_name) > 1:
-                        try:
-                            header_level = int(class_name[1:])
-                        except ValueError:
-                            pass
-                
-                output.append(f"{'#' * header_level} {element.get_text().strip()}")
-                
-            elif element.name == 'p':
-                # Handle paragraphs
-                output.append(element.get_text().strip())
-                
-            elif element.name == 'ul' or element.name == 'ol':
-                # Handle lists
-                list_output = process_list_element(element)
-                output.append(list_output)
-                
-            elif element.name == 'pre':
-                # Handle code blocks
-                code_text = element.get_text().strip()
+        # More robust element processing to handle ClickUp's HTML structure
+        # Even if elements are not direct children of the root
+        
+        # Process headings
+        for heading in soup.find_all('h', class_=lambda c: c and c.startswith('h')):
+            header_level = 1
+            classes = heading.get('class', [])
+            
+            # Extract header level from class name
+            for class_name in classes:
+                if class_name.startswith('h') and len(class_name) > 1:
+                    try:
+                        header_level = int(class_name[1:])
+                    except ValueError:
+                        pass
+            
+            output.append(f"{'#' * header_level} {heading.get_text().strip()}")
+        
+        # Process paragraphs
+        for para in soup.find_all('p'):
+            output.append(para.get_text().strip())
+        
+        # Process lists
+        for list_element in soup.find_all(['ul', 'ol']):
+            # Skip nested lists that will be handled by their parent
+            if list_element.parent and list_element.parent.name in ['ul', 'ol', 'li']:
+                continue
+            list_output = process_list_element(list_element)
+            output.append(list_output)
+        
+        # Process code blocks
+        for pre in soup.find_all('pre'):
+            if 'code' in pre.get('class', []):
+                code_text = pre.get_text().strip()
                 output.append(f"```\n{code_text}\n```")
+            elif pre.code:
+                code_text = pre.code.get_text().strip()
+                output.append(f"```\n{code_text}\n```")
+            else:
+                code_text = pre.get_text().strip()
+                output.append(f"```\n{code_text}\n```")
+        
+        # Process blockquotes
+        for blockquote in soup.find_all('blockquote'):
+            text = blockquote.get_text().strip()
+            lines = text.split('\n')
+            quoted_lines = [f"> {line}" for line in lines]
+            output.append('\n'.join(quoted_lines))
+        
+        # Process tables
+        for table in soup.find_all('table'):
+            table_output = []
+            
+            # Process table headers
+            headers = []
+            for th in table.find_all('th'):
+                headers.append(th.get_text().strip())
+            
+            if headers:
+                table_output.append('| ' + ' | '.join(headers) + ' |')
+                # Add the separator row
+                table_output.append('| ' + ' | '.join(['---'] * len(headers)) + ' |')
+            
+            # Process table rows
+            for tr in table.find_all('tr'):
+                # Skip header rows that we've already processed
+                if tr.find('th'):
+                    continue
                 
-            elif element.name == 'blockquote':
-                # Handle blockquotes
-                text = element.get_text().strip()
-                lines = text.split('\n')
-                quoted_lines = [f"> {line}" for line in lines]
-                output.append('\n'.join(quoted_lines))
+                cells = []
+                for td in tr.find_all('td'):
+                    cells.append(td.get_text().strip())
                 
-            elif isinstance(element, str) and element.strip():
-                # Handle plain text
+                if cells:
+                    table_output.append('| ' + ' | '.join(cells) + ' |')
+            
+            if table_output:
+                output.append('\n'.join(table_output))
+        
+        # Process links
+        for link in soup.find_all('a'):
+            href = link.get('href', '')
+            text = link.get_text().strip()
+            if href and text:
+                # Don't add as separate element, just log for debugging
+                logger.debug(f"Found link: [{text}]({href})")
+        
+        # Process any remaining text at the root level
+        for element in soup.children:
+            if isinstance(element, str) and element.strip():
                 output.append(element.strip())
         
+        # If output is empty but there was HTML content, get all text as fallback
+        if not output and contains_html:
+            all_text = soup.get_text().strip()
+            if all_text:
+                output.append(all_text)
+                
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_output = []
+        for item in output:
+            if item and item not in seen:
+                seen.add(item)
+                unique_output.append(item)
+                
         # Join everything with double newlines for proper markdown spacing
-        return '\n\n'.join(output).strip()
+        formatted = '\n\n'.join(unique_output).strip()
+        
+        # Log the output for debugging
+        logger.debug(f"Formatted markdown output: {formatted}")
+        
+        return formatted
     except Exception as e:
-        logger.error(f"Error formatting description for display: {e}")
+        logger.error(f"Error formatting description for display: {e}", exc_info=True)
         return description  # Return the original description in case of errors
 
 def process_list_element(list_element, indent_level=0):
