@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 from clickup_mcp_server.client import ClickUpClient
 import requests
 
@@ -295,17 +295,28 @@ class TestClickUpClient:
         
     @patch("requests.request")
     def test_get_task_subtasks(self, mock_request, client):
-        # Setup mock response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
+        # Setup mock responses - need to handle multiple requests
+        
+        # First request - get parent task
+        parent_task_response = MagicMock()
+        parent_task_response.json.return_value = {
             "id": "task123",
             "name": "Parent Task",
-            "subtasks": [
-                {"id": "subtask1", "name": "Subtask 1", "status": {"status": "To Do"}},
-                {"id": "subtask2", "name": "Subtask 2", "status": {"status": "In Progress"}}
+            "list": {"id": "list123", "name": "Test List"}
+        }
+        
+        # Second request - get tasks from the list
+        list_tasks_response = MagicMock()
+        list_tasks_response.json.return_value = {
+            "tasks": [
+                {"id": "subtask1", "name": "Subtask 1", "status": {"status": "To Do"}, "parent": "task123", "orderindex": 1},
+                {"id": "subtask2", "name": "Subtask 2", "status": {"status": "In Progress"}, "parent": "task123", "orderindex": 2},
+                {"id": "other_task", "name": "Other Task", "status": {"status": "Open"}, "parent": None}
             ]
         }
-        mock_request.return_value = mock_response
+        
+        # Configure mock to return different responses for different requests
+        mock_request.side_effect = [parent_task_response, list_tasks_response]
         
         # Call method
         result = client.get_task_subtasks("task123")
@@ -319,11 +330,23 @@ class TestClickUpClient:
         assert result[1]["name"] == "Subtask 2"
         assert result[1]["status"]["status"] == "In Progress"
         
-        # Verify request was made correctly
-        mock_request.assert_called_once_with(
+        # Verify requests were made correctly
+        assert mock_request.call_count == 2
+        
+        # First call - get the parent task details
+        assert mock_request.call_args_list[0] == call(
             method="GET",
             url="https://api.clickup.com/api/v2/task/task123",
             headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
-            params={"subtasks": True},
+            params=None,
+            json=None
+        )
+        
+        # Second call - get all tasks in the list
+        assert mock_request.call_args_list[1] == call(
+            method="GET",
+            url="https://api.clickup.com/api/v2/list/list123/task",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
             json=None
         )

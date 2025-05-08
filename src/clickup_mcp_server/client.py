@@ -255,9 +255,25 @@ class ClickUpClient:
     
     def get_task_subtasks(self, task_id: str) -> List[Dict]:
         """Get subtasks for a task"""
-        params = {"subtasks": True}
-        response = self._make_request("GET", f"/task/{task_id}", params=params)
-        return response.get("subtasks", [])
+        # First get the task to determine which list it's in
+        task = self._make_request("GET", f"/task/{task_id}")
+        list_id = task.get("list", {}).get("id")
+        
+        if not list_id:
+            self.logger.warning(f"Could not determine list_id for task {task_id}")
+            return []
+        
+        # Get all tasks in the list and filter for those with parent=task_id
+        all_tasks = self.get_tasks(list_id)
+        subtasks = [
+            task for task in all_tasks 
+            if task.get("parent") == task_id
+        ]
+        
+        # Sort subtasks by orderindex if available
+        subtasks.sort(key=lambda x: x.get("orderindex", 0))
+        
+        return subtasks
         
     def delete_task(self, task_id: str) -> Dict:
         """Delete a task by ID"""

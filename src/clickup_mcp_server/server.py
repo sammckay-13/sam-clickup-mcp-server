@@ -729,7 +729,18 @@ async def serve(api_key: str) -> None:
                     )]
                 
                 case ClickUpTools.GET_TASK_SUBTASKS:
-                    subtasks = client.get_task_subtasks(arguments["task_id"])
+                    task_id = arguments["task_id"]
+                    
+                    # First get the parent task details for context
+                    try:
+                        parent_task = client.get_task(task_id)
+                        parent_name = parent_task.get("name", "Unknown Task")
+                    except Exception as e:
+                        logger.warning(f"Error getting parent task details: {e}")
+                        parent_name = "Unknown Task"
+                    
+                    # Get subtasks
+                    subtasks = client.get_task_subtasks(task_id)
                     
                     # Format descriptions and text_content in subtasks for better readability
                     for subtask in subtasks:
@@ -738,9 +749,34 @@ async def serve(api_key: str) -> None:
                         if "text_content" in subtask and subtask["text_content"] and ("<" in subtask["text_content"] and ">" in subtask["text_content"]):
                             subtask["text_content"] = "(HTML content - use formatted description field)"
                     
+                    # If no subtasks were found
+                    if not subtasks:
+                        return [TextContent(
+                            type="text",
+                            text=f"No subtasks found for task '{parent_name}' (ID: {task_id})"
+                        )]
+                    
+                    # Prepare a more detailed response
+                    result = [f"Subtasks for task '{parent_name}' (ID: {task_id}):"]
+                    
+                    for i, subtask in enumerate(subtasks, 1):
+                        name = subtask.get("name", f"Subtask {i}")
+                        id_value = subtask.get("id", "unknown")
+                        
+                        # Get status information if available
+                        status_info = ""
+                        if "status" in subtask:
+                            if isinstance(subtask["status"], dict):
+                                status_name = subtask["status"].get("status", "Unknown")
+                                status_info = f" - Status: {status_name}"
+                            elif isinstance(subtask["status"], str):
+                                status_info = f" - Status: {subtask['status']}"
+                        
+                        result.append(f"  {i}. {name} (ID: {id_value}){status_info}")
+                    
                     return [TextContent(
                         type="text",
-                        text=f"Subtasks for task {arguments['task_id']}:\n{format_json_list(subtasks)}"
+                        text="\n".join(result)
                     )]
                     
                 case ClickUpTools.DELETE_TASK:
