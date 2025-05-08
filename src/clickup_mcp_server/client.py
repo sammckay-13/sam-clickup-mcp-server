@@ -255,20 +255,33 @@ class ClickUpClient:
     
     def get_task_subtasks(self, task_id: str) -> List[Dict]:
         """Get subtasks for a task"""
-        # First get the task to determine which list it's in
-        task = self._make_request("GET", f"/task/{task_id}")
-        list_id = task.get("list", {}).get("id")
+        # Use the subtasks parameter to directly get subtasks
+        # The ClickUp API documentation indicates this is the correct approach
+        params = {"subtasks": True, "include_subtasks": True}
+        response = self._make_request("GET", f"/task/{task_id}", params=params)
         
+        # Check if we got subtasks directly
+        if "subtasks" in response and isinstance(response["subtasks"], list):
+            self.logger.debug(f"Found {len(response['subtasks'])} subtasks using direct method")
+            return response.get("subtasks", [])
+        
+        # Fallback method: get the list and filter by parent field
+        self.logger.debug(f"Subtasks not found in response, trying fallback method")
+        
+        # Get the task to determine which list it belongs to
+        list_id = response.get("list", {}).get("id")
         if not list_id:
             self.logger.warning(f"Could not determine list_id for task {task_id}")
             return []
         
         # Get all tasks in the list and filter for those with parent=task_id
-        all_tasks = self.get_tasks(list_id)
+        all_tasks = self.get_tasks(list_id, {"include_subtasks": True})
         subtasks = [
             task for task in all_tasks 
             if task.get("parent") == task_id
         ]
+        
+        self.logger.debug(f"Found {len(subtasks)} subtasks using fallback method")
         
         # Sort subtasks by orderindex if available
         subtasks.sort(key=lambda x: x.get("orderindex", 0))

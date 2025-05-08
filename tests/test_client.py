@@ -295,9 +295,48 @@ class TestClickUpClient:
         
     @patch("requests.request")
     def test_get_task_subtasks(self, mock_request, client):
-        # Setup mock responses - need to handle multiple requests
+        # Test case 1: When API returns subtasks directly (primary method)
         
-        # First request - get parent task
+        # Setup mock response with direct subtasks
+        direct_subtasks_response = MagicMock()
+        direct_subtasks_response.json.return_value = {
+            "id": "task123",
+            "name": "Parent Task",
+            "list": {"id": "list123", "name": "Test List"},
+            "subtasks": [
+                {"id": "subtask1", "name": "Subtask 1", "status": {"status": "To Do"}, "orderindex": 1},
+                {"id": "subtask2", "name": "Subtask 2", "status": {"status": "In Progress"}, "orderindex": 2}
+            ]
+        }
+        
+        # Configure mock
+        mock_request.return_value = direct_subtasks_response
+        
+        # Call method
+        result = client.get_task_subtasks("task123")
+        
+        # Verify results
+        assert len(result) == 2
+        assert result[0]["id"] == "subtask1"
+        assert result[0]["name"] == "Subtask 1"
+        assert result[0]["status"]["status"] == "To Do"
+        assert result[1]["id"] == "subtask2"
+        assert result[1]["name"] == "Subtask 2"
+        assert result[1]["status"]["status"] == "In Progress"
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="GET",
+            url="https://api.clickup.com/api/v2/task/task123",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params={"subtasks": True, "include_subtasks": True},
+            json=None
+        )
+        
+        # Test case 2: Fallback method when API doesn't return subtasks directly
+        mock_request.reset_mock()
+        
+        # First request - get parent task without subtasks field
         parent_task_response = MagicMock()
         parent_task_response.json.return_value = {
             "id": "task123",
@@ -333,20 +372,20 @@ class TestClickUpClient:
         # Verify requests were made correctly
         assert mock_request.call_count == 2
         
-        # First call - get the parent task details
+        # First call - get the parent task details with subtasks params
         assert mock_request.call_args_list[0] == call(
             method="GET",
             url="https://api.clickup.com/api/v2/task/task123",
             headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
-            params=None,
+            params={"subtasks": True, "include_subtasks": True},
             json=None
         )
         
-        # Second call - get all tasks in the list
+        # Second call - get all tasks in the list with include_subtasks param
         assert mock_request.call_args_list[1] == call(
             method="GET",
             url="https://api.clickup.com/api/v2/list/list123/task",
             headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
-            params=None,
+            params={"include_subtasks": True},
             json=None
         )
