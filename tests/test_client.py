@@ -70,13 +70,13 @@ class TestClickUpClient:
         assert result["id"] == "task123"
         assert result["name"] == "New Task"
         
-        # Verify request was made correctly
+        # Verify request was made correctly - account for markdown conversion
         mock_request.assert_called_once_with(
             method="POST",
             url="https://api.clickup.com/api/v2/list/list123/task",
             headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
             params=None,
-            json={"name": "New Task", "description": "Task description"}
+            json={"name": "New Task", "description": "<p>Task description</p>", "markdown_content": "Task description"}
         )
     
     @patch("requests.request")
@@ -116,3 +116,179 @@ class TestClickUpClient:
         # Call method and check for exception
         with pytest.raises(requests.exceptions.HTTPError):
             client.get_workspaces()
+    
+    # Checklist tests
+    
+    @patch("requests.request")
+    def test_create_checklist(self, mock_request, client):
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": "checklist123", "name": "Test Checklist", "task_id": "task123"}
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.create_checklist("task123", "Test Checklist")
+        
+        # Verify results
+        assert result["id"] == "checklist123"
+        assert result["name"] == "Test Checklist"
+        assert result["task_id"] == "task123"
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="POST",
+            url="https://api.clickup.com/api/v2/task/task123/checklist",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
+            json={"name": "Test Checklist"}
+        )
+    
+    @patch("requests.request")
+    def test_get_checklists(self, mock_request, client):
+        # Setup mock responses for get_task which is called by get_checklists
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "task123",
+            "name": "Test Task",
+            "checklists": [
+                {
+                    "id": "checklist123",
+                    "name": "Test Checklist",
+                    "items": [
+                        {"id": "item1", "name": "Item 1", "resolved": False},
+                        {"id": "item2", "name": "Item 2", "resolved": True}
+                    ]
+                }
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.get_checklists("task123")
+        
+        # Verify results
+        assert len(result) == 1
+        assert result[0]["id"] == "checklist123"
+        assert result[0]["name"] == "Test Checklist"
+        assert len(result[0]["items"]) == 2
+        assert result[0]["items"][0]["name"] == "Item 1"
+        assert result[0]["items"][0]["resolved"] is False
+        assert result[0]["items"][1]["name"] == "Item 2"
+        assert result[0]["items"][1]["resolved"] is True
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="GET",
+            url="https://api.clickup.com/api/v2/task/task123",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
+            json=None
+        )
+    
+    @patch("requests.request")
+    def test_update_checklist(self, mock_request, client):
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": "checklist123", "name": "Updated Checklist"}
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.update_checklist("checklist123", "Updated Checklist")
+        
+        # Verify results
+        assert result["id"] == "checklist123"
+        assert result["name"] == "Updated Checklist"
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="PUT",
+            url="https://api.clickup.com/api/v2/checklist/checklist123",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
+            json={"name": "Updated Checklist"}
+        )
+    
+    @patch("requests.request")
+    def test_create_checklist_item(self, mock_request, client):
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "item123", 
+            "name": "Test Item", 
+            "resolved": False,
+            "checklist_id": "checklist123"
+        }
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.create_checklist_item("checklist123", "Test Item", "user123")
+        
+        # Verify results
+        assert result["id"] == "item123"
+        assert result["name"] == "Test Item"
+        assert result["resolved"] is False
+        assert result["checklist_id"] == "checklist123"
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="POST",
+            url="https://api.clickup.com/api/v2/checklist/checklist123/checklist_item",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
+            json={"name": "Test Item", "assignee": "user123"}
+        )
+    
+    @patch("requests.request")
+    def test_update_checklist_item(self, mock_request, client):
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "item123", 
+            "name": "Updated Item", 
+            "resolved": True,
+            "checklist_id": "checklist123"
+        }
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.update_checklist_item(
+            "checklist123", "item123", "Updated Item", True, "user123"
+        )
+        
+        # Verify results
+        assert result["id"] == "item123"
+        assert result["name"] == "Updated Item"
+        assert result["resolved"] is True
+        assert result["checklist_id"] == "checklist123"
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="PUT",
+            url="https://api.clickup.com/api/v2/checklist/checklist123/checklist_item/item123",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
+            json={"name": "Updated Item", "resolved": True, "assignee": "user123"}
+        )
+    
+    @patch("requests.request")
+    def test_delete_checklist_item(self, mock_request, client):
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"id": "item123", "deleted": True}
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.delete_checklist_item("checklist123", "item123")
+        
+        # Verify results
+        assert result["id"] == "item123"
+        assert result["deleted"] is True
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="DELETE",
+            url="https://api.clickup.com/api/v2/checklist/checklist123/checklist_item/item123",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params=None,
+            json=None
+        )

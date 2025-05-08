@@ -322,6 +322,50 @@ class ClickUpClient:
         data = {"tasks": task_ids}
         return self._make_request("DELETE", "/task/bulk", data=data)
         
+    # Checklist methods
+    
+    def create_checklist(self, task_id: str, name: str) -> Dict:
+        """Create a new checklist in a task"""
+        data = {"name": name}
+        return self._make_request("POST", f"/task/{task_id}/checklist", data=data)
+    
+    def get_checklists(self, task_id: str) -> List[Dict]:
+        """Get all checklists for a task"""
+        task = self.get_task(task_id)
+        return task.get("checklists", [])
+    
+    def delete_checklist(self, checklist_id: str) -> Dict:
+        """Delete a checklist"""
+        return self._make_request("DELETE", f"/checklist/{checklist_id}")
+    
+    def update_checklist(self, checklist_id: str, name: str) -> Dict:
+        """Update a checklist's name"""
+        data = {"name": name}
+        return self._make_request("PUT", f"/checklist/{checklist_id}", data=data)
+    
+    def create_checklist_item(self, checklist_id: str, name: str, assignee_id: Optional[str] = None) -> Dict:
+        """Create a new item in a checklist"""
+        data = {"name": name}
+        if assignee_id:
+            data["assignee"] = assignee_id
+        return self._make_request("POST", f"/checklist/{checklist_id}/checklist_item", data=data)
+    
+    def update_checklist_item(self, checklist_id: str, checklist_item_id: str, name: Optional[str] = None, 
+                             resolved: Optional[bool] = None, assignee_id: Optional[str] = None) -> Dict:
+        """Update a checklist item"""
+        data = {}
+        if name is not None:
+            data["name"] = name
+        if resolved is not None:
+            data["resolved"] = resolved
+        if assignee_id is not None:
+            data["assignee"] = assignee_id
+        return self._make_request("PUT", f"/checklist/{checklist_id}/checklist_item/{checklist_item_id}", data=data)
+    
+    def delete_checklist_item(self, checklist_id: str, checklist_item_id: str) -> Dict:
+        """Delete a checklist item"""
+        return self._make_request("DELETE", f"/checklist/{checklist_id}/checklist_item/{checklist_item_id}")
+        
     def navigate_workspace(self, path: str) -> Dict:
         """
         Navigate through workspace hierarchy using path notation

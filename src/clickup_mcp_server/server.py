@@ -108,6 +108,37 @@ class BulkDeleteTasks(BaseModel):
 class GetComments(BaseModel):
     task_id: str = Field(description="ID of the task to get comments for")
 
+# Checklist Models
+class CreateChecklist(BaseModel):
+    task_id: str = Field(description="ID of the task to add checklist to")
+    name: str = Field(description="Name of the checklist")
+    
+class GetChecklists(BaseModel):
+    task_id: str = Field(description="ID of the task to get checklists from")
+    
+class UpdateChecklist(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist to update")
+    name: str = Field(description="New name for the checklist")
+    
+class DeleteChecklist(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist to delete")
+    
+class CreateChecklistItem(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist to add the item to")
+    name: str = Field(description="Name of the checklist item")
+    assignee_id: Optional[str] = Field(None, description="ID of the user to assign the item to")
+    
+class UpdateChecklistItem(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist containing the item")
+    checklist_item_id: str = Field(description="ID of the checklist item to update")
+    name: Optional[str] = Field(None, description="New name for the checklist item")
+    resolved: Optional[bool] = Field(None, description="Whether the item is resolved or not")
+    assignee_id: Optional[str] = Field(None, description="ID of the user to assign the item to")
+    
+class DeleteChecklistItem(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist containing the item")
+    checklist_item_id: str = Field(description="ID of the checklist item to delete")
+
 class GetFolders(BaseModel):
     space_id: str = Field(description="ID of the space")
 
@@ -170,6 +201,14 @@ class ClickUpTools(str, Enum):
     ADD_ATTACHMENT = "add_attachment"
     BULK_UPDATE_TASKS = "bulk_update_tasks"
     BULK_DELETE_TASKS = "bulk_delete_tasks"
+    # Checklist tools
+    CREATE_CHECKLIST = "create_checklist"
+    GET_CHECKLISTS = "get_checklists"
+    UPDATE_CHECKLIST = "update_checklist"
+    DELETE_CHECKLIST = "delete_checklist"
+    CREATE_CHECKLIST_ITEM = "create_checklist_item"
+    UPDATE_CHECKLIST_ITEM = "update_checklist_item"
+    DELETE_CHECKLIST_ITEM = "delete_checklist_item"
 
 async def serve(api_key: str) -> None:
     """Run the ClickUp MCP server"""
@@ -335,6 +374,42 @@ async def serve(api_key: str) -> None:
                 name=ClickUpTools.BULK_DELETE_TASKS,
                 description="Delete multiple tasks at once",
                 inputSchema=BulkDeleteTasks.schema(),
+            ),
+            # Checklist tools
+            Tool(
+                name=ClickUpTools.CREATE_CHECKLIST,
+                description="Create a new checklist in a task",
+                inputSchema=CreateChecklist.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.GET_CHECKLISTS,
+                description="Get all checklists for a task",
+                inputSchema=GetChecklists.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.UPDATE_CHECKLIST,
+                description="Update a checklist's name",
+                inputSchema=UpdateChecklist.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.DELETE_CHECKLIST,
+                description="Delete a checklist",
+                inputSchema=DeleteChecklist.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.CREATE_CHECKLIST_ITEM,
+                description="Create a new item in a checklist",
+                inputSchema=CreateChecklistItem.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.UPDATE_CHECKLIST_ITEM,
+                description="Update a checklist item",
+                inputSchema=UpdateChecklistItem.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.DELETE_CHECKLIST_ITEM,
+                description="Delete a checklist item",
+                inputSchema=DeleteChecklistItem.schema(),
             ),
         ]
 
@@ -886,6 +961,99 @@ async def serve(api_key: str) -> None:
                     return [TextContent(
                         type="text",
                         text=f"Bulk deleted {len(arguments['task_ids'])} tasks:\n{format_json(result)}"
+                    )]
+                    
+                # Checklist operations
+                case ClickUpTools.CREATE_CHECKLIST:
+                    result = client.create_checklist(arguments["task_id"], arguments["name"])
+                    return [TextContent(
+                        type="text",
+                        text=f"Created checklist in task {arguments['task_id']}:\n{format_json(result)}"
+                    )]
+                    
+                case ClickUpTools.GET_CHECKLISTS:
+                    checklists = client.get_checklists(arguments["task_id"])
+                    if not checklists:
+                        return [TextContent(
+                            type="text",
+                            text=f"No checklists found for task {arguments['task_id']}"
+                        )]
+                    
+                    result = [f"Checklists for task {arguments['task_id']}:"]
+                    for i, checklist in enumerate(checklists, 1):
+                        checklist_name = checklist.get("name", f"Checklist {i}")
+                        checklist_id = checklist.get("id", "unknown")
+                        result.append(f"\n## {i}. {checklist_name} (ID: {checklist_id})")
+                        
+                        # Format items in the checklist
+                        items = checklist.get("items", [])
+                        if items:
+                            for j, item in enumerate(items, 1):
+                                item_name = item.get("name", f"Item {j}")
+                                item_id = item.get("id", "unknown")
+                                resolved = "✓" if item.get("resolved") else "□"
+                                result.append(f"   {j}. {resolved} {item_name} (ID: {item_id})")
+                        else:
+                            result.append("   (no items)")
+                    
+                    return [TextContent(
+                        type="text",
+                        text="\n".join(result)
+                    )]
+                    
+                case ClickUpTools.UPDATE_CHECKLIST:
+                    result = client.update_checklist(arguments["checklist_id"], arguments["name"])
+                    return [TextContent(
+                        type="text",
+                        text=f"Updated checklist {arguments['checklist_id']}:\n{format_json(result)}"
+                    )]
+                    
+                case ClickUpTools.DELETE_CHECKLIST:
+                    result = client.delete_checklist(arguments["checklist_id"])
+                    return [TextContent(
+                        type="text",
+                        text=f"Deleted checklist {arguments['checklist_id']} successfully."
+                    )]
+                    
+                case ClickUpTools.CREATE_CHECKLIST_ITEM:
+                    checklist_id = arguments["checklist_id"]
+                    name = arguments["name"]
+                    assignee_id = arguments.get("assignee_id")
+                    
+                    result = client.create_checklist_item(checklist_id, name, assignee_id)
+                    return [TextContent(
+                        type="text",
+                        text=f"Created item in checklist {checklist_id}:\n{format_json(result)}"
+                    )]
+                    
+                case ClickUpTools.UPDATE_CHECKLIST_ITEM:
+                    checklist_id = arguments["checklist_id"]
+                    checklist_item_id = arguments["checklist_item_id"]
+                    name = arguments.get("name")
+                    resolved = arguments.get("resolved")
+                    assignee_id = arguments.get("assignee_id")
+                    
+                    result = client.update_checklist_item(
+                        checklist_id, 
+                        checklist_item_id, 
+                        name, 
+                        resolved, 
+                        assignee_id
+                    )
+                    
+                    return [TextContent(
+                        type="text",
+                        text=f"Updated item {checklist_item_id} in checklist {checklist_id}:\n{format_json(result)}"
+                    )]
+                    
+                case ClickUpTools.DELETE_CHECKLIST_ITEM:
+                    checklist_id = arguments["checklist_id"]
+                    checklist_item_id = arguments["checklist_item_id"]
+                    
+                    result = client.delete_checklist_item(checklist_id, checklist_item_id)
+                    return [TextContent(
+                        type="text",
+                        text=f"Deleted item {checklist_item_id} from checklist {checklist_id} successfully."
                     )]
                 
                 case _:
