@@ -292,3 +292,38 @@ class TestClickUpClient:
             params=None,
             json=None
         )
+        
+    @patch("requests.request")
+    def test_get_task_subtasks(self, mock_request, client):
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "id": "task123",
+            "name": "Parent Task",
+            "subtasks": [
+                {"id": "subtask1", "name": "Subtask 1", "status": {"status": "To Do"}},
+                {"id": "subtask2", "name": "Subtask 2", "status": {"status": "In Progress"}}
+            ]
+        }
+        mock_request.return_value = mock_response
+        
+        # Call method
+        result = client.get_task_subtasks("task123")
+        
+        # Verify results
+        assert len(result) == 2
+        assert result[0]["id"] == "subtask1"
+        assert result[0]["name"] == "Subtask 1"
+        assert result[0]["status"]["status"] == "To Do"
+        assert result[1]["id"] == "subtask2"
+        assert result[1]["name"] == "Subtask 2"
+        assert result[1]["status"]["status"] == "In Progress"
+        
+        # Verify request was made correctly
+        mock_request.assert_called_once_with(
+            method="GET",
+            url="https://api.clickup.com/api/v2/task/task123",
+            headers={"Authorization": "test_api_key", "Content-Type": "application/json"},
+            params={"subtasks": True},
+            json=None
+        )
