@@ -139,6 +139,37 @@ class DeleteChecklistItem(BaseModel):
     checklist_id: str = Field(description="ID of the checklist containing the item")
     checklist_item_id: str = Field(description="ID of the checklist item to delete")
 
+# Checklist Models
+class CreateChecklist(BaseModel):
+    task_id: str = Field(description="ID of the task to add checklist to")
+    name: str = Field(description="Name of the checklist")
+    
+class GetChecklists(BaseModel):
+    task_id: str = Field(description="ID of the task to get checklists from")
+    
+class UpdateChecklist(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist to update")
+    name: str = Field(description="New name for the checklist")
+    
+class DeleteChecklist(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist to delete")
+    
+class CreateChecklistItem(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist to add the item to")
+    name: str = Field(description="Name of the checklist item")
+    assignee_id: Optional[str] = Field(None, description="ID of the user to assign the item to")
+    
+class UpdateChecklistItem(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist containing the item")
+    checklist_item_id: str = Field(description="ID of the checklist item to update")
+    name: Optional[str] = Field(None, description="New name for the checklist item")
+    resolved: Optional[bool] = Field(None, description="Whether the item is resolved or not")
+    assignee_id: Optional[str] = Field(None, description="ID of the user to assign the item to")
+    
+class DeleteChecklistItem(BaseModel):
+    checklist_id: str = Field(description="ID of the checklist containing the item")
+    checklist_item_id: str = Field(description="ID of the checklist item to delete")
+
 class GetFolders(BaseModel):
     space_id: str = Field(description="ID of the space")
 
@@ -168,6 +199,25 @@ class GetListStatuses(BaseModel):
 
 class GetTasksGroupedByStatus(BaseModel):
     list_id: str = Field(description="ID of the list/board")
+
+# Custom field models
+class GetCustomFields(BaseModel):
+    list_id: str = Field(description="ID of the list/board to get custom fields for")
+
+class SetCustomFieldValue(BaseModel):
+    task_id: str = Field(description="ID of the task to update")
+    field_id: str = Field(description="ID of the custom field to update")
+    value: Any = Field(description="Value to set for the custom field")
+
+class SetCustomFieldValueByName(BaseModel):
+    task_id: str = Field(description="ID of the task to update")
+    list_id: str = Field(description="ID of the list (needed to find custom field by name)")
+    field_name: str = Field(description="Name of the custom field to update")
+    value: Any = Field(description="Value to set for the custom field")
+
+class RemoveCustomFieldValue(BaseModel):
+    task_id: str = Field(description="ID of the task")
+    field_id: str = Field(description="ID of the custom field to remove value from")
 
 class ClickUpTools(str, Enum):
     GET_WORKSPACES = "get_workspaces"
@@ -209,6 +259,11 @@ class ClickUpTools(str, Enum):
     CREATE_CHECKLIST_ITEM = "create_checklist_item"
     UPDATE_CHECKLIST_ITEM = "update_checklist_item"
     DELETE_CHECKLIST_ITEM = "delete_checklist_item"
+    # Custom field tools
+    GET_CUSTOM_FIELDS = "get_custom_fields"
+    SET_CUSTOM_FIELD_VALUE = "set_custom_field_value"
+    SET_CUSTOM_FIELD_VALUE_BY_NAME = "set_custom_field_value_by_name"
+    REMOVE_CUSTOM_FIELD_VALUE = "remove_custom_field_value"
 
 async def serve(api_key: str) -> None:
     """Run the ClickUp MCP server"""
@@ -410,6 +465,27 @@ async def serve(api_key: str) -> None:
                 name=ClickUpTools.DELETE_CHECKLIST_ITEM,
                 description="Delete a checklist item",
                 inputSchema=DeleteChecklistItem.schema(),
+            ),
+            # Custom field tools
+            Tool(
+                name=ClickUpTools.GET_CUSTOM_FIELDS,
+                description="Get all custom fields for a list/board",
+                inputSchema=GetCustomFields.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.SET_CUSTOM_FIELD_VALUE,
+                description="Set a custom field value for a task using field ID",
+                inputSchema=SetCustomFieldValue.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.SET_CUSTOM_FIELD_VALUE_BY_NAME,
+                description="Set a custom field value for a task using field name",
+                inputSchema=SetCustomFieldValueByName.schema(),
+            ),
+            Tool(
+                name=ClickUpTools.REMOVE_CUSTOM_FIELD_VALUE,
+                description="Remove a custom field value from a task",
+                inputSchema=RemoveCustomFieldValue.schema(),
             ),
         ]
 
@@ -666,7 +742,18 @@ async def serve(api_key: str) -> None:
                     
                     # Enhanced handling of HTML content in task fields
                     
+                    # Enhanced handling of HTML content in task fields
+                    
                     # Format the description for better readability if it exists
+                    if "description" in task and task["description"]:
+                        # More robust check for HTML content
+                        contains_html = any(tag in task["description"] for tag in [
+                            '<h', '<p>', '<div', '<span', '<ul>', '<ol>', '<li>', '<pre>', '<code>', 
+                            '<a ', '<b>', '<i>', '<em>', '<strong>', '<table>', '<blockquote>'
+                        ])
+                        
+                        if contains_html:
+                            # Convert HTML to markdown for better display
                     if "description" in task and task["description"]:
                         # More robust check for HTML content
                         contains_html = any(tag in task["description"] for tag in [
@@ -690,7 +777,28 @@ async def serve(api_key: str) -> None:
                             logger.debug(f"Used text_content as description for task {arguments['task_id']}")
                         else:
                             # Otherwise just hide the raw HTML
+                            logger.debug(f"Converted HTML description to markdown for task {arguments['task_id']}")
+                    
+                    # Handle text_content field which typically contains raw HTML
+                    if "text_content" in task and task["text_content"]:
+                        # If text_content contains HTML but description was empty, use text_content instead
+                        if (not task.get("description") and 
+                            any(tag in task["text_content"] for tag in ['<h', '<p>', '<div', '<ul>', '<ol>'])):
+                            
+                            task["description"] = format_description_for_display(task["text_content"])
+                            task["text_content"] = "(HTML content - converted to markdown in description field)"
+                            logger.debug(f"Used text_content as description for task {arguments['task_id']}")
+                        else:
+                            # Otherwise just hide the raw HTML
                             task["text_content"] = "(HTML content - use formatted description field)"
+                    
+                    # Process any custom fields that might contain HTML
+                    if "custom_fields" in task and isinstance(task["custom_fields"], list):
+                        for field in task["custom_fields"]:
+                            if field.get("type") == "text" and field.get("value"):
+                                value = field["value"]
+                                if isinstance(value, str) and ("<" in value and ">" in value):
+                                    field["value"] = format_description_for_display(value)
                     
                     # Process any custom fields that might contain HTML
                     if "custom_fields" in task and isinstance(task["custom_fields"], list):
@@ -741,6 +849,18 @@ async def serve(api_key: str) -> None:
                     
                     # Get subtasks
                     subtasks = client.get_task_subtasks(task_id)
+                    task_id = arguments["task_id"]
+                    
+                    # First get the parent task details for context
+                    try:
+                        parent_task = client.get_task(task_id)
+                        parent_name = parent_task.get("name", "Unknown Task")
+                    except Exception as e:
+                        logger.warning(f"Error getting parent task details: {e}")
+                        parent_name = "Unknown Task"
+                    
+                    # Get subtasks
+                    subtasks = client.get_task_subtasks(task_id)
                     
                     # Format descriptions and text_content in subtasks for better readability
                     for subtask in subtasks:
@@ -749,6 +869,34 @@ async def serve(api_key: str) -> None:
                         if "text_content" in subtask and subtask["text_content"] and ("<" in subtask["text_content"] and ">" in subtask["text_content"]):
                             subtask["text_content"] = "(HTML content - use formatted description field)"
                     
+                    # If no subtasks were found
+                    if not subtasks:
+                        return [TextContent(
+                            type="text",
+                            text=f"No subtasks found for task '{parent_name}' (ID: {task_id})"
+                        )]
+                    
+                    # Prepare a more detailed response
+                    result = [f"Subtasks for task '{parent_name}' (ID: {task_id}):"]
+                    
+                    for i, subtask in enumerate(subtasks, 1):
+                        name = subtask.get("name", f"Subtask {i}")
+                        id_value = subtask.get("id", "unknown")
+                        
+                        # Get status information if available
+                        status_info = ""
+                        if "status" in subtask:
+                            if isinstance(subtask["status"], dict):
+                                status_name = subtask["status"].get("status", "Unknown")
+                                status_info = f" - Status: {status_name}"
+                            elif isinstance(subtask["status"], str):
+                                status_info = f" - Status: {subtask['status']}"
+                        
+                        result.append(f"  {i}. {name} (ID: {id_value}){status_info}")
+                    
+                    return [TextContent(
+                        type="text",
+                        text="\n".join(result)
                     # If no subtasks were found
                     if not subtasks:
                         return [TextContent(
@@ -827,6 +975,56 @@ async def serve(api_key: str) -> None:
                 
                 case ClickUpTools.GET_COMMENTS:
                     task_id = arguments.get("task_id", "")
+                    comments = []
+                    
+                    try:
+                        # Get comments from the API
+                        comments = client.get_comments(task_id)
+                        
+                        # Format the comments for display as plain text (no HTML/markdown processing)
+                        if comments:
+                            formatted_comments = []
+                            for comment in comments:
+                                # Format user name
+                                user_name = "Unknown User"
+                                if "user" in comment and isinstance(comment["user"], dict):
+                                    user = comment["user"]
+                                    if "username" in user and user["username"]:
+                                        user_name = user["username"]
+                                    elif "email" in user and user["email"]:
+                                        user_name = user["email"]
+                                
+                                # Format date
+                                date_str = ""
+                                if "date" in comment:
+                                    try:
+                                        date_val = comment["date"]
+                                        if isinstance(date_val, int):
+                                            from datetime import datetime
+                                            date_obj = datetime.fromtimestamp(date_val / 1000.0)
+                                            date_str = date_obj.strftime("%Y-%m-%d %H:%M:%S")
+                                    except Exception as e:
+                                        logger.error(f"Error formatting date: {e}")
+                                        
+                                # Get comment text as plain text
+                                comment_text = comment.get("comment_text", "")
+                                
+                                # Add formatted comment
+                                formatted_comments.append(f"{user_name} ({date_str}):\n{comment_text}")
+                            
+                            # Join comments with separator
+                            comments_text = "\n\n---\n\n".join(formatted_comments)
+                            return [TextContent(
+                                type="text", 
+                                text=f"Comments for task {task_id}:\n\n{comments_text}"
+                            )]
+                    except Exception as e:
+                        logger.error(f"Error getting comments: {e}", exc_info=True)
+                    
+                    # Fallback response if no comments or error occurred
+                    return [TextContent(
+                        type="text",
+                        text=f"Comments for task {task_id}:\n\nView comments directly in ClickUp: https://app.clickup.com/t/{task_id}\n\nNo comments found or there was an error retrieving comments."
                     comments = []
                     
                     try:
@@ -1090,6 +1288,88 @@ async def serve(api_key: str) -> None:
                     return [TextContent(
                         type="text",
                         text=f"Deleted item {checklist_item_id} from checklist {checklist_id} successfully."
+                    )]
+                
+                # Custom field operations
+                case ClickUpTools.GET_CUSTOM_FIELDS:
+                    list_id = arguments["list_id"]
+                    fields = client.get_custom_fields(list_id)
+                    
+                    if not fields:
+                        return [TextContent(
+                            type="text",
+                            text=f"No custom fields found for list {list_id}"
+                        )]
+                    
+                    result = [f"Custom fields for list {list_id}:"]
+                    for i, field in enumerate(fields, 1):
+                        field_name = field.get("name", f"Field {i}")
+                        field_id = field.get("id", "unknown")
+                        field_type = field.get("type", "unknown")
+                        
+                        # Get type config info if available
+                        type_config = field.get("type_config", {})
+                        type_info = ""
+                        if field_type == "drop_down" and "options" in type_config:
+                            options = [opt.get("name", "Unknown") for opt in type_config.get("options", [])]
+                            type_info = f" (options: {', '.join(options[:3])}" + ("..." if len(options) > 3 else "") + ")"
+                        elif field_type == "url":
+                            type_info = " (URL field)"
+                        elif field_type == "text":
+                            type_info = " (text field)"
+                        elif field_type == "number":
+                            type_info = " (number field)"
+                        elif field_type == "date":
+                            type_info = " (date field)"
+                        
+                        result.append(f"  {i}. {field_name} (ID: {field_id}, Type: {field_type}{type_info})")
+                    
+                    return [TextContent(
+                        type="text",
+                        text="\n".join(result)
+                    )]
+                
+                case ClickUpTools.SET_CUSTOM_FIELD_VALUE:
+                    task_id = arguments["task_id"]
+                    field_id = arguments["field_id"]
+                    value = arguments["value"]
+                    
+                    result = client.set_custom_field_value(task_id, field_id, value)
+                    return [TextContent(
+                        type="text",
+                        text=f"Set custom field {field_id} to '{value}' for task {task_id}"
+                    )]
+                
+                case ClickUpTools.SET_CUSTOM_FIELD_VALUE_BY_NAME:
+                    task_id = arguments["task_id"]
+                    list_id = arguments["list_id"]
+                    field_name = arguments["field_name"]
+                    value = arguments["value"]
+                    
+                    # Find the custom field by name
+                    field = client.find_custom_field_by_name(list_id, field_name)
+                    if not field:
+                        return [TextContent(
+                            type="text",
+                            text=f"Custom field '{field_name}' not found in list {list_id}"
+                        )]
+                    
+                    field_id = field.get("id")
+                    result = client.set_custom_field_value(task_id, field_id, value)
+                    
+                    return [TextContent(
+                        type="text",
+                        text=f"Set custom field '{field_name}' (ID: {field_id}) to '{value}' for task {task_id}"
+                    )]
+                
+                case ClickUpTools.REMOVE_CUSTOM_FIELD_VALUE:
+                    task_id = arguments["task_id"]
+                    field_id = arguments["field_id"]
+                    
+                    result = client.remove_custom_field_value(task_id, field_id)
+                    return [TextContent(
+                        type="text",
+                        text=f"Removed custom field {field_id} value from task {task_id}"
                     )]
                 
                 case _:

@@ -220,7 +220,11 @@ class ClickUpClient:
     def create_task(self, list_id: str, name: str, **kwargs) -> Dict:
         """Create a new task in a list"""
         # Use markdown_content field for native markdown support
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             # Store the original markdown in markdown_content field
             kwargs["markdown_content"] = kwargs["description"]
             # Also convert to HTML for description field as fallback for clients that don't support markdown
@@ -236,7 +240,11 @@ class ClickUpClient:
     def update_task(self, task_id: str, **kwargs) -> Dict:
         """Update a task"""
         # Use markdown_content field for native markdown support
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             # Store the original markdown in markdown_content field
             kwargs["markdown_content"] = kwargs["description"]
             # Also convert to HTML for description field as fallback for clients that don't support markdown
@@ -258,6 +266,9 @@ class ClickUpClient:
         # Use the subtasks parameter to directly get subtasks
         # The ClickUp API documentation indicates this is the correct approach
         params = {"subtasks": True, "include_subtasks": True}
+        # Use the subtasks parameter to directly get subtasks
+        # The ClickUp API documentation indicates this is the correct approach
+        params = {"subtasks": True, "include_subtasks": True}
         response = self._make_request("GET", f"/task/{task_id}", params=params)
         
         # Check if we got subtasks directly
@@ -265,8 +276,13 @@ class ClickUpClient:
             self.logger.debug(f"Found {len(response['subtasks'])} subtasks using direct method")
             return response.get("subtasks", [])
         
+        # Check if we got subtasks directly
+        if "subtasks" in response and isinstance(response["subtasks"], list):
+            self.logger.debug(f"Found {len(response['subtasks'])} subtasks using direct method")
+            return response.get("subtasks", [])
+        
         # Fallback method: get the list and filter by parent field
-        self.logger.debug(f"Subtasks not found in response, trying fallback method")
+        self.logger.debug("Subtasks not found in response, trying fallback method")
         
         # Get the task to determine which list it belongs to
         list_id = response.get("list", {}).get("id")
@@ -307,7 +323,11 @@ class ClickUpClient:
     def create_subtask(self, parent_task_id: str, name: str, **kwargs) -> Dict:
         """Create a subtask for a parent task"""
         # Use markdown_content field for native markdown support
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             # Store the original markdown in markdown_content field
             kwargs["markdown_content"] = kwargs["description"]
             # Also convert to HTML for description field as fallback for clients that don't support markdown
@@ -318,6 +338,10 @@ class ClickUpClient:
         
     def add_comment(self, task_id: str, comment_text: str) -> Dict:
         """Add a comment to a task"""
+        # Send comments as plain text - no markdown or HTML processing
+        data = {
+            "comment_text": comment_text
+        }
         # Send comments as plain text - no markdown or HTML processing
         data = {
             "comment_text": comment_text
@@ -337,7 +361,11 @@ class ClickUpClient:
     def bulk_update_tasks(self, list_id: str, task_ids: List[str], **kwargs) -> Dict:
         """Update multiple tasks in a list at once"""
         # Use markdown_content field for native markdown support
+        # Use markdown_content field for native markdown support
         if "description" in kwargs:
+            # Store the original markdown in markdown_content field
+            kwargs["markdown_content"] = kwargs["description"]
+            # Also convert to HTML for description field as fallback for clients that don't support markdown
             # Store the original markdown in markdown_content field
             kwargs["markdown_content"] = kwargs["description"]
             # Also convert to HTML for description field as fallback for clients that don't support markdown
@@ -350,6 +378,50 @@ class ClickUpClient:
         """Delete multiple tasks at once"""
         data = {"tasks": task_ids}
         return self._make_request("DELETE", "/task/bulk", data=data)
+        
+    # Checklist methods
+    
+    def create_checklist(self, task_id: str, name: str) -> Dict:
+        """Create a new checklist in a task"""
+        data = {"name": name}
+        return self._make_request("POST", f"/task/{task_id}/checklist", data=data)
+    
+    def get_checklists(self, task_id: str) -> List[Dict]:
+        """Get all checklists for a task"""
+        task = self.get_task(task_id)
+        return task.get("checklists", [])
+    
+    def delete_checklist(self, checklist_id: str) -> Dict:
+        """Delete a checklist"""
+        return self._make_request("DELETE", f"/checklist/{checklist_id}")
+    
+    def update_checklist(self, checklist_id: str, name: str) -> Dict:
+        """Update a checklist's name"""
+        data = {"name": name}
+        return self._make_request("PUT", f"/checklist/{checklist_id}", data=data)
+    
+    def create_checklist_item(self, checklist_id: str, name: str, assignee_id: Optional[str] = None) -> Dict:
+        """Create a new item in a checklist"""
+        data = {"name": name}
+        if assignee_id:
+            data["assignee"] = assignee_id
+        return self._make_request("POST", f"/checklist/{checklist_id}/checklist_item", data=data)
+    
+    def update_checklist_item(self, checklist_id: str, checklist_item_id: str, name: Optional[str] = None, 
+                             resolved: Optional[bool] = None, assignee_id: Optional[str] = None) -> Dict:
+        """Update a checklist item"""
+        data = {}
+        if name is not None:
+            data["name"] = name
+        if resolved is not None:
+            data["resolved"] = resolved
+        if assignee_id is not None:
+            data["assignee"] = assignee_id
+        return self._make_request("PUT", f"/checklist/{checklist_id}/checklist_item/{checklist_item_id}", data=data)
+    
+    def delete_checklist_item(self, checklist_id: str, checklist_item_id: str) -> Dict:
+        """Delete a checklist item"""
+        return self._make_request("DELETE", f"/checklist/{checklist_id}/checklist_item/{checklist_item_id}")
         
     # Checklist methods
     
@@ -475,3 +547,27 @@ class ClickUpClient:
         }
         
         return result
+
+    # Custom field methods
+    
+    def get_custom_fields(self, list_id: str) -> List[Dict]:
+        """Get all custom fields for a list"""
+        response = self._make_request("GET", f"/list/{list_id}/field")
+        return response.get("fields", [])
+    
+    def set_custom_field_value(self, task_id: str, field_id: str, value: Any) -> Dict:
+        """Set a custom field value for a task"""
+        data = {"value": value}
+        return self._make_request("POST", f"/task/{task_id}/field/{field_id}", data=data)
+    
+    def remove_custom_field_value(self, task_id: str, field_id: str) -> Dict:
+        """Remove a custom field value from a task"""
+        return self._make_request("DELETE", f"/task/{task_id}/field/{field_id}")
+    
+    def find_custom_field_by_name(self, list_id: str, field_name: str) -> Optional[Dict]:
+        """Find a custom field by name in a list"""
+        fields = self.get_custom_fields(list_id)
+        for field in fields:
+            if field.get("name", "").lower() == field_name.lower():
+                return field
+        return None
