@@ -139,37 +139,6 @@ class DeleteChecklistItem(BaseModel):
     checklist_id: str = Field(description="ID of the checklist containing the item")
     checklist_item_id: str = Field(description="ID of the checklist item to delete")
 
-# Checklist Models
-class CreateChecklist(BaseModel):
-    task_id: str = Field(description="ID of the task to add checklist to")
-    name: str = Field(description="Name of the checklist")
-    
-class GetChecklists(BaseModel):
-    task_id: str = Field(description="ID of the task to get checklists from")
-    
-class UpdateChecklist(BaseModel):
-    checklist_id: str = Field(description="ID of the checklist to update")
-    name: str = Field(description="New name for the checklist")
-    
-class DeleteChecklist(BaseModel):
-    checklist_id: str = Field(description="ID of the checklist to delete")
-    
-class CreateChecklistItem(BaseModel):
-    checklist_id: str = Field(description="ID of the checklist to add the item to")
-    name: str = Field(description="Name of the checklist item")
-    assignee_id: Optional[str] = Field(None, description="ID of the user to assign the item to")
-    
-class UpdateChecklistItem(BaseModel):
-    checklist_id: str = Field(description="ID of the checklist containing the item")
-    checklist_item_id: str = Field(description="ID of the checklist item to update")
-    name: Optional[str] = Field(None, description="New name for the checklist item")
-    resolved: Optional[bool] = Field(None, description="Whether the item is resolved or not")
-    assignee_id: Optional[str] = Field(None, description="ID of the user to assign the item to")
-    
-class DeleteChecklistItem(BaseModel):
-    checklist_id: str = Field(description="ID of the checklist containing the item")
-    checklist_item_id: str = Field(description="ID of the checklist item to delete")
-
 class GetFolders(BaseModel):
     space_id: str = Field(description="ID of the space")
 
@@ -740,20 +709,7 @@ async def serve(api_key: str) -> None:
                 case ClickUpTools.GET_TASK:
                     task = client.get_task(arguments["task_id"])
                     
-                    # Enhanced handling of HTML content in task fields
-                    
-                    # Enhanced handling of HTML content in task fields
-                    
                     # Format the description for better readability if it exists
-                    if "description" in task and task["description"]:
-                        # More robust check for HTML content
-                        contains_html = any(tag in task["description"] for tag in [
-                            '<h', '<p>', '<div', '<span', '<ul>', '<ol>', '<li>', '<pre>', '<code>', 
-                            '<a ', '<b>', '<i>', '<em>', '<strong>', '<table>', '<blockquote>'
-                        ])
-                        
-                        if contains_html:
-                            # Convert HTML to markdown for better display
                     if "description" in task and task["description"]:
                         # More robust check for HTML content
                         contains_html = any(tag in task["description"] for tag in [
@@ -777,28 +733,7 @@ async def serve(api_key: str) -> None:
                             logger.debug(f"Used text_content as description for task {arguments['task_id']}")
                         else:
                             # Otherwise just hide the raw HTML
-                            logger.debug(f"Converted HTML description to markdown for task {arguments['task_id']}")
-                    
-                    # Handle text_content field which typically contains raw HTML
-                    if "text_content" in task and task["text_content"]:
-                        # If text_content contains HTML but description was empty, use text_content instead
-                        if (not task.get("description") and 
-                            any(tag in task["text_content"] for tag in ['<h', '<p>', '<div', '<ul>', '<ol>'])):
-                            
-                            task["description"] = format_description_for_display(task["text_content"])
-                            task["text_content"] = "(HTML content - converted to markdown in description field)"
-                            logger.debug(f"Used text_content as description for task {arguments['task_id']}")
-                        else:
-                            # Otherwise just hide the raw HTML
                             task["text_content"] = "(HTML content - use formatted description field)"
-                    
-                    # Process any custom fields that might contain HTML
-                    if "custom_fields" in task and isinstance(task["custom_fields"], list):
-                        for field in task["custom_fields"]:
-                            if field.get("type") == "text" and field.get("value"):
-                                value = field["value"]
-                                if isinstance(value, str) and ("<" in value and ">" in value):
-                                    field["value"] = format_description_for_display(value)
                     
                     # Process any custom fields that might contain HTML
                     if "custom_fields" in task and isinstance(task["custom_fields"], list):
@@ -849,18 +784,6 @@ async def serve(api_key: str) -> None:
                     
                     # Get subtasks
                     subtasks = client.get_task_subtasks(task_id)
-                    task_id = arguments["task_id"]
-                    
-                    # First get the parent task details for context
-                    try:
-                        parent_task = client.get_task(task_id)
-                        parent_name = parent_task.get("name", "Unknown Task")
-                    except Exception as e:
-                        logger.warning(f"Error getting parent task details: {e}")
-                        parent_name = "Unknown Task"
-                    
-                    # Get subtasks
-                    subtasks = client.get_task_subtasks(task_id)
                     
                     # Format descriptions and text_content in subtasks for better readability
                     for subtask in subtasks:
@@ -869,34 +792,6 @@ async def serve(api_key: str) -> None:
                         if "text_content" in subtask and subtask["text_content"] and ("<" in subtask["text_content"] and ">" in subtask["text_content"]):
                             subtask["text_content"] = "(HTML content - use formatted description field)"
                     
-                    # If no subtasks were found
-                    if not subtasks:
-                        return [TextContent(
-                            type="text",
-                            text=f"No subtasks found for task '{parent_name}' (ID: {task_id})"
-                        )]
-                    
-                    # Prepare a more detailed response
-                    result = [f"Subtasks for task '{parent_name}' (ID: {task_id}):"]
-                    
-                    for i, subtask in enumerate(subtasks, 1):
-                        name = subtask.get("name", f"Subtask {i}")
-                        id_value = subtask.get("id", "unknown")
-                        
-                        # Get status information if available
-                        status_info = ""
-                        if "status" in subtask:
-                            if isinstance(subtask["status"], dict):
-                                status_name = subtask["status"].get("status", "Unknown")
-                                status_info = f" - Status: {status_name}"
-                            elif isinstance(subtask["status"], str):
-                                status_info = f" - Status: {subtask['status']}"
-                        
-                        result.append(f"  {i}. {name} (ID: {id_value}){status_info}")
-                    
-                    return [TextContent(
-                        type="text",
-                        text="\n".join(result)
                     # If no subtasks were found
                     if not subtasks:
                         return [TextContent(
@@ -975,57 +870,6 @@ async def serve(api_key: str) -> None:
                 
                 case ClickUpTools.GET_COMMENTS:
                     task_id = arguments.get("task_id", "")
-                    comments = []
-                    
-                    try:
-                        # Get comments from the API
-                        comments = client.get_comments(task_id)
-                        
-                        # Format the comments for display as plain text (no HTML/markdown processing)
-                        if comments:
-                            formatted_comments = []
-                            for comment in comments:
-                                # Format user name
-                                user_name = "Unknown User"
-                                if "user" in comment and isinstance(comment["user"], dict):
-                                    user = comment["user"]
-                                    if "username" in user and user["username"]:
-                                        user_name = user["username"]
-                                    elif "email" in user and user["email"]:
-                                        user_name = user["email"]
-                                
-                                # Format date
-                                date_str = ""
-                                if "date" in comment:
-                                    try:
-                                        date_val = comment["date"]
-                                        if isinstance(date_val, int):
-                                            from datetime import datetime
-                                            date_obj = datetime.fromtimestamp(date_val / 1000.0)
-                                            date_str = date_obj.strftime("%Y-%m-%d %H:%M:%S")
-                                    except Exception as e:
-                                        logger.error(f"Error formatting date: {e}")
-                                        
-                                # Get comment text as plain text
-                                comment_text = comment.get("comment_text", "")
-                                
-                                # Add formatted comment
-                                formatted_comments.append(f"{user_name} ({date_str}):\n{comment_text}")
-                            
-                            # Join comments with separator
-                            comments_text = "\n\n---\n\n".join(formatted_comments)
-                            return [TextContent(
-                                type="text", 
-                                text=f"Comments for task {task_id}:\n\n{comments_text}"
-                            )]
-                    except Exception as e:
-                        logger.error(f"Error getting comments: {e}", exc_info=True)
-                    
-                    # Fallback response if no comments or error occurred
-                    return [TextContent(
-                        type="text",
-                        text=f"Comments for task {task_id}:\n\nView comments directly in ClickUp: https://app.clickup.com/t/{task_id}\n\nNo comments found or there was an error retrieving comments."
-                    comments = []
                     
                     try:
                         # Get comments from the API
@@ -1076,101 +920,6 @@ async def serve(api_key: str) -> None:
                         type="text",
                         text=f"Comments for task {task_id}:\n\nView comments directly in ClickUp: https://app.clickup.com/t/{task_id}\n\nNo comments found or there was an error retrieving comments."
                     )]
-                    
-                    # Skip the original implementation - UNREACHABLE CODE
-                    if False:  # This block will never execute
-                        try:
-                            # Get the task ID from arguments and validate it
-                            task_id = arguments.get("task_id")
-                            if not task_id:
-                                raise ValueError("Missing required parameter: task_id")
-                                
-                            logger.debug(f"Fetching comments for task {task_id}")
-                            comments = client.get_comments(task_id)
-                            
-                            # Format the comments for better readability
-                            if not comments:
-                                logger.debug(f"No comments found for task {task_id}")
-                                return [TextContent(
-                                    type="text",
-                                    text=f"No comments found for task {task_id}"
-                                )]
-                            
-                            logger.debug(f"Found {len(comments)} comments for task {task_id}")
-                            result = [f"Comments for task {task_id}:"]
-                            
-                            for i, comment in enumerate(comments, 1):
-                                # Extract comment metadata with safe fallbacks
-                                user = comment.get("user", {})
-                                user_name = user.get("username", "Unknown")
-                                comment_text = comment.get("comment_text", "")
-                                
-                                # Format the comment_text to convert HTML to readable text
-                                # Only process HTML in comment text
-                                if comment_text and ("<" in comment_text and ">" in comment_text):
-                                    formatted_comment = format_description_for_display(comment_text)
-                                else:
-                                    formatted_comment = comment_text
-                                
-                                # Handle date with robust type checking and error handling
-                                date = comment.get("date")
-                                date_str = None
-                                
-                                if date is not None:
-                                    import datetime
-                                    try:
-                                        # More detailed handling of different date types
-                                        if isinstance(date, (int, float)):
-                                            # Already numeric, use directly
-                                            timestamp_ms = date
-                                        elif isinstance(date, str) and date.strip():
-                                            # Try to convert string to int
-                                            try:
-                                                timestamp_ms = int(date.strip())
-                                            except ValueError:
-                                                # If it's not a simple numeric string, log warning
-                                                logger.warning(f"Invalid date format for comment {i}: {date}")
-                                                timestamp_ms = None
-                                        else:
-                                            # For other types or empty strings, log and skip
-                                            logger.warning(f"Unsupported date type for comment {i}: {type(date)}")
-                                            timestamp_ms = None
-                                        
-                                        # Convert timestamp to formatted date string if valid
-                                        if timestamp_ms is not None:
-                                            # Ensure timestamp_ms is treated as an integer or float
-                                            try:
-                                                timestamp_ms_float = float(timestamp_ms)
-                                                date_str = datetime.datetime.fromtimestamp(timestamp_ms_float/1000).strftime('%Y-%m-%d %H:%M:%S')
-                                            except (ValueError, TypeError) as e:
-                                                logger.warning(f"Could not convert timestamp {timestamp_ms} to float: {e}")
-                                                timestamp_ms = None
-                                    except Exception as e:
-                                        # Detailed error logging
-                                        logger.error(f"Error formatting date for comment {i}: {e}, date value: {date}, type: {type(date)}")
-                                
-                                # Append comment header with date if available
-                                if date_str:
-                                    result.append(f"\n## Comment {i} by {user_name} on {date_str}")
-                                else:
-                                    result.append(f"\n## Comment {i} by {user_name}")
-                                
-                                # Append the formatted comment text
-                                result.append(formatted_comment)
-                            
-                            # Return the formatted comments
-                            return [TextContent(
-                                type="text",
-                                text="\n".join(result)
-                            )]
-                        
-                        except Exception as e:
-                            # Comprehensive error handling
-                            logger.error(f"Error processing GET_COMMENTS: {str(e)}", exc_info=True)
-                            return [TextContent(
-                                type="text",
-                                text=f"Error retrieving comments: {str(e)}"
-                            )]
                     
                 case ClickUpTools.ADD_ATTACHMENT:
                     result = client.add_attachment(arguments["task_id"], arguments["attachment_url"])

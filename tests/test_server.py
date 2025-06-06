@@ -48,7 +48,6 @@ class TestServer:
         """Test that list_tools returns all expected tools"""
         # Extract the list_tools decorator to get the actual function
         server_instance = mock_server
-        list_tools_decorator = server_instance.list_tools
         
         # Call serve to register the tools
         with patch("clickup_mcp_server.server.list_tools", new_callable=AsyncMock) as mock_list_tools:
